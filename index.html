@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Control de Hallazgos · DCSM</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-datalabels/2.2.0/chartjs-plugin-datalabels.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{
+  --bg:#EEF1F6; --bg-2:#F8FAFC; --panel:#FFFFFF; --panel-2:#F4F6FA;
+  --border:#E3E8EF; --border-2:#D5DCE6;
+  --ink:#152033; --txt:#1F2A3D; --txt-mut:#5B6678; --txt-dim:#8A94A6;
+  --accent:#0E7C86;
+  --abierto:#E8590C; --cerrado:#0E9F6E; --na:#94A3B8;
+  --alta:#DC2626; --media:#D97706; --baja:#2563EB;
+  --icetel:#4F46E5; --nextstream:#0891B2; --finaliz:#0E9F6E; --rechaz:#94A3B8;
+  --shadow:0 1px 2px rgba(21,32,51,.04), 0 8px 24px -16px rgba(21,32,51,.18);
+  --shadow-lg:0 24px 60px -24px rgba(21,32,51,.35);
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:
+    radial-gradient(1100px 520px at 88% -8%, rgba(79,70,229,.06), transparent 60%),
+    radial-gradient(900px 460px at -8% 4%, rgba(8,145,178,.06), transparent 58%),
+    var(--bg);
+  color:var(--txt); font-family:"Inter",system-ui,sans-serif; font-size:14px; line-height:1.5; min-height:100vh;
+}
+.wrap{max-width:1480px;margin:0 auto;padding:22px 22px 60px}
+
+header{display:flex;align-items:flex-end;justify-content:space-between;gap:20px;flex-wrap:wrap;margin-bottom:18px}
+.brand{display:flex;align-items:center;gap:14px}
+.logo{width:44px;height:44px;border-radius:12px;flex:none;background:linear-gradient(145deg,var(--icetel),var(--nextstream));display:grid;place-items:center;box-shadow:0 8px 20px -8px rgba(79,70,229,.55)}
+.logo svg{width:24px;height:24px}
+.brand h1{font-family:"Space Grotesk";font-weight:700;font-size:22px;margin:0;letter-spacing:-.015em;color:var(--ink)}
+.brand p{margin:3px 0 0;color:var(--txt-mut);font-size:12.5px;letter-spacing:.01em}
+.head-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.stamp{font-family:"IBM Plex Mono";font-size:11px;color:var(--txt-dim);text-align:right;line-height:1.45}
+.stamp b{color:var(--txt-mut);font-weight:600}
+
+.btn{font-family:"Space Grotesk";font-weight:500;font-size:13px;border:1px solid var(--border-2);background:var(--panel);color:var(--txt);padding:9px 14px;border-radius:9px;cursor:pointer;display:inline-flex;align-items:center;gap:7px;transition:.16s;box-shadow:var(--shadow)}
+.btn:hover{border-color:var(--accent);color:var(--ink)}
+.btn svg{width:15px;height:15px}
+.btn-primary{background:linear-gradient(135deg,var(--icetel),var(--nextstream));border-color:transparent;color:#fff}
+.btn-primary:hover{filter:brightness(1.06)}
+.btn-ghost{background:var(--panel)}
+
+#dropzone{position:fixed;inset:0;z-index:50;background:rgba(238,241,246,.86);backdrop-filter:blur(3px);display:none;align-items:center;justify-content:center;flex-direction:column}
+#dropzone.show{display:flex}
+#dropzone .ring{border:2px dashed var(--accent);border-radius:20px;padding:60px 80px;text-align:center;background:#fff;box-shadow:var(--shadow-lg)}
+#dropzone h2{font-family:"Space Grotesk";margin:14px 0 6px;color:var(--ink)}
+#dropzone p{color:var(--txt-mut);margin:0}
+
+.banner{display:flex;align-items:center;gap:12px;background:linear-gradient(90deg,rgba(14,124,134,.09),#fff);border:1px solid var(--border);border-left:3px solid var(--accent);border-radius:11px;padding:11px 15px;margin-bottom:16px;font-size:13px;color:#225b61;box-shadow:var(--shadow)}
+.banner svg{width:17px;height:17px;flex:none;color:var(--accent)}
+.banner.hidden{display:none}
+
+.filterbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;background:var(--panel);border:1px solid var(--border);border-radius:13px;padding:12px 14px;margin-bottom:18px;box-shadow:var(--shadow)}
+.filterbar .fgroup{display:flex;flex-direction:column;gap:4px}
+.filterbar label{font-size:10.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--txt-dim);font-weight:700}
+select,input[type=search]{background:var(--bg-2);border:1px solid var(--border-2);color:var(--txt);border-radius:8px;padding:8px 10px;font-family:"Inter";font-size:13px;min-width:120px;outline:none}
+select:focus,input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(14,124,134,.12)}
+.chip-active{display:flex;align-items:center;gap:7px;margin-left:auto;flex-wrap:wrap}
+.chip{display:inline-flex;align-items:center;gap:6px;background:rgba(14,124,134,.10);border:1px solid rgba(14,124,134,.30);color:#0c5f67;padding:5px 10px;border-radius:20px;font-size:12px;font-weight:600}
+.chip button{background:none;border:none;color:inherit;cursor:pointer;font-size:14px;line-height:1;padding:0;opacity:.7}
+.chip button:hover{opacity:1}
+
+.kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:13px;margin-bottom:18px}
+.kpi{background:var(--panel);border:1px solid var(--border);border-radius:13px;padding:15px 16px;position:relative;overflow:hidden;box-shadow:var(--shadow);transition:.18s}
+.kpi:hover{transform:translateY(-2px);box-shadow:0 12px 28px -18px rgba(21,32,51,.4)}
+.kpi::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--accent)}
+.kpi.k-ab::before{background:var(--abierto)} .kpi.k-ce::before{background:var(--cerrado)}
+.kpi.k-na::before{background:var(--na)} .kpi.k-ic::before{background:var(--icetel)} .kpi.k-nx::before{background:var(--nextstream)}
+.kpi .lab{font-size:11px;color:var(--txt-mut);text-transform:uppercase;letter-spacing:.05em;font-weight:700;display:flex;align-items:center;gap:6px}
+.kpi .val{font-family:"IBM Plex Mono";font-weight:600;font-size:30px;margin-top:7px;letter-spacing:-.02em;color:var(--ink)}
+.kpi .sub{font-size:11.5px;color:var(--txt-dim);margin-top:2px}
+
+.grid{display:grid;grid-template-columns:repeat(12,1fr);gap:16px}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:16px 17px;box-shadow:var(--shadow)}
+.card h3{font-family:"Space Grotesk";font-weight:600;font-size:14.5px;margin:0 0 2px;display:flex;align-items:center;justify-content:space-between;gap:8px;color:var(--ink)}
+.card .hint{font-size:11px;color:var(--txt-dim);margin:0 0 12px}
+.card.col-7{grid-column:span 7} .card.col-5{grid-column:span 5}
+.card.col-6{grid-column:span 6} .card.col-12{grid-column:span 12}
+.chart-box{position:relative;height:260px}
+.chart-box.short{height:212px}
+.seg{display:inline-flex;background:var(--bg-2);border:1px solid var(--border-2);border-radius:8px;padding:2px;gap:2px}
+.seg button{background:none;border:none;color:var(--txt-mut);font-family:"Space Grotesk";font-size:12px;font-weight:500;padding:5px 11px;border-radius:6px;cursor:pointer}
+.seg button.on{background:var(--accent);color:#fff}
+
+.court{display:grid;grid-template-columns:1fr auto 1fr;align-items:stretch;margin-top:6px;border-radius:12px;overflow:hidden;border:1px solid var(--border-2)}
+.side{padding:18px 16px;cursor:pointer;transition:.18s;position:relative}
+.side.ic{background:linear-gradient(160deg,rgba(79,70,229,.12),rgba(79,70,229,.03))}
+.side.nx{background:linear-gradient(160deg,rgba(8,145,178,.12),rgba(8,145,178,.03));text-align:right}
+.side:hover{filter:brightness(.98);background-color:rgba(0,0,0,.01)}
+.side .who{font-family:"Space Grotesk";font-weight:600;font-size:13px;letter-spacing:.02em;display:flex;align-items:center;gap:8px;color:var(--ink)}
+.side.nx .who{justify-content:flex-end}
+.side .dot{width:9px;height:9px;border-radius:50%}
+.side.ic .dot{background:var(--icetel)} .side.nx .dot{background:var(--nextstream)}
+.side .big{font-family:"IBM Plex Mono";font-weight:600;font-size:40px;margin:6px 0 2px;line-height:1;color:var(--ink)}
+.side .pct{font-size:12px;color:var(--txt-mut)}
+.net{display:grid;place-items:center;padding:0 4px;background:repeating-linear-gradient(0deg,var(--border-2),var(--border-2) 4px,transparent 4px,transparent 9px);width:3px}
+.gestrows{margin-top:14px;display:flex;flex-direction:column;gap:7px}
+.gestrow{display:grid;grid-template-columns:1fr auto;align-items:center;gap:10px;font-size:12.5px;padding:7px 11px;border-radius:8px;background:var(--bg-2);border:1px solid var(--border);cursor:pointer;transition:.15s}
+.gestrow:hover{border-color:var(--accent);background:#fff}
+.gestrow .gl{display:flex;align-items:center;gap:9px;color:var(--txt)}
+.gestrow .gn{font-family:"IBM Plex Mono";font-weight:600;font-size:15px;color:var(--ink)}
+.tag{font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;letter-spacing:.03em;white-space:nowrap}
+.tag.ic{background:rgba(79,70,229,.12);color:#4338CA;border:1px solid rgba(79,70,229,.3)}
+.tag.nx{background:rgba(8,145,178,.12);color:#0E7490;border:1px solid rgba(8,145,178,.3)}
+.tag.fi{background:rgba(14,159,110,.12);color:#0a7e57;border:1px solid rgba(14,159,110,.3)}
+.tag.re{background:rgba(148,163,184,.16);color:#5B6678;border:1px solid rgba(148,163,184,.4)}
+.tag.sa{background:rgba(148,163,184,.16);color:#5B6678;border:1px solid rgba(148,163,184,.4)}
+
+.tablecard{grid-column:span 12;margin-top:2px}
+.tabletop{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.tablewrap{overflow:auto;border:1px solid var(--border);border-radius:11px;max-height:460px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+thead th{position:sticky;top:0;background:var(--panel-2);text-align:left;padding:11px 12px;font-family:"Space Grotesk";font-weight:600;font-size:11.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--txt-mut);border-bottom:1px solid var(--border-2);cursor:pointer;white-space:nowrap;user-select:none}
+thead th:hover{color:var(--ink)}
+thead th .ar{opacity:.5;font-size:10px}
+tbody td{padding:10px 12px;border-bottom:1px solid var(--border);vertical-align:top;color:var(--txt)}
+tbody tr{cursor:pointer;transition:.12s}
+tbody tr:hover{background:var(--panel-2)}
+tbody tr:last-child td{border-bottom:none}
+.pill{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:700;white-space:nowrap}
+.pill::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.p-abierto{background:rgba(232,89,12,.12);color:#C2410C} .p-cerrado{background:rgba(14,159,110,.12);color:#0a7e57}
+.p-na{background:rgba(148,163,184,.16);color:#5B6678}
+.p-alta{background:rgba(220,38,38,.12);color:#B91C1C} .p-media{background:rgba(217,119,6,.13);color:#B45309} .p-baja{background:rgba(37,99,235,.12);color:#1D4ED8}
+.idcell{font-family:"IBM Plex Mono";font-size:12px;color:var(--txt-mut)}
+.empty{padding:48px;text-align:center;color:var(--txt-dim)}
+
+.modal{position:fixed;inset:0;z-index:60;background:rgba(21,32,51,.45);backdrop-filter:blur(4px);display:none;align-items:center;justify-content:center;padding:20px}
+.modal.show{display:flex}
+.modal-box{background:var(--panel);border:1px solid var(--border-2);border-radius:16px;max-width:640px;width:100%;max-height:86vh;overflow:auto;box-shadow:var(--shadow-lg)}
+.modal-h{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:20px 22px 14px;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--panel)}
+.modal-h h3{font-family:"Space Grotesk";margin:0;font-size:17px;color:var(--ink)}
+.modal-h .x{background:none;border:none;color:var(--txt-mut);font-size:22px;cursor:pointer;line-height:1}
+.modal-h .x:hover{color:var(--ink)}
+.modal-body{padding:18px 22px 24px;display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.field{display:flex;flex-direction:column;gap:3px}
+.field.full{grid-column:1/-1}
+.field .fl{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--txt-dim);font-weight:700}
+.field .fv{font-size:14px;color:var(--txt)}
+.field .obs{background:var(--bg-2);border:1px solid var(--border);border-radius:9px;padding:11px 13px;font-size:13.5px;line-height:1.55;white-space:pre-wrap;color:var(--txt)}
+
+footer{margin-top:30px;text-align:center;color:var(--txt-dim);font-size:11.5px;font-family:"IBM Plex Mono"}
+
+@media (max-width:1100px){.kpis{grid-template-columns:repeat(3,1fr)}.card.col-7,.card.col-5,.card.col-6{grid-column:span 12}}
+@media (max-width:680px){.kpis{grid-template-columns:repeat(2,1fr)}.modal-body{grid-template-columns:1fr}.brand h1{font-size:18px}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+.fade{animation:fade .4s ease both}
+@keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="brand">
+      <div class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h7l-1 8 10-12h-7z"/></svg></div>
+      <div>
+        <h1>Gestión de Hallazgos</h1>
+        <p>Data Center San Martín · Gestión SSGG + Energía + Clima</p>
+      </div>
+    </div>
+    <div class="head-actions">
+      <div class="stamp" id="stamp"></div>
+      <button class="btn btn-primary" id="btnLoad">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 16V4m0 0L8 8m4-4 4 4M4 20h16"/></svg><span class="btnload-txt">Actualizar Excel</span>
+      </button>
+      <input type="file" id="file" accept=".xlsx,.xls,.csv" style="display:none">
+    </div>
+  </header>
+
+  <div class="banner" id="banner">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 16v-4m0-4h.01M22 12A10 10 0 1 1 12 2a10 10 0 0 1 10 10z"/></svg>
+    <span id="bannerTxt"></span>
+  </div>
+
+  <div class="filterbar" id="filterbar">
+    <div class="fgroup"><label>Área</label><select id="fArea"><option value="">Todas</option></select></div>
+    <div class="fgroup"><label>Estado</label><select id="fEstado"><option value="">Todos</option></select></div>
+    <div class="fgroup"><label>Prioridad</label><select id="fPrioridad"><option value="">Todas</option></select></div>
+    <div class="fgroup"><label>Responsable</label><select id="fPelota"><option value="">Todas</option></select></div>
+    <div class="fgroup"><label>Año</label><select id="fAno"><option value="">Todos</option></select></div>
+    <div class="fgroup"><label>Mes</label><select id="fMes"><option value="">Todos</option></select></div>
+    <div class="fgroup" style="flex:1;min-width:160px"><label>Buscar</label><input type="search" id="fSearch" placeholder="N°, sala, equipo, título, observación…"></div>
+    <div class="chip-active" id="chips"></div>
+  </div>
+
+  <div class="kpis" id="kpis"></div>
+
+  <div class="grid">
+    <div class="card col-7">
+      <h3>Hallazgos por área <span class="hint" style="margin:0">clic para filtrar</span></h3>
+      <p class="hint">Distribución por estado (Abierto · Cerrado · N/A) en cada área.</p>
+      <div class="chart-box short"><canvas id="chArea"></canvas></div>
+    </div>
+
+    <div class="card col-5">
+      <h3>Estado general</h3>
+      <p class="hint">Clic en un segmento para filtrar todo el tablero.</p>
+      <div class="chart-box short"><canvas id="chEstado"></canvas></div>
+    </div>
+
+    <div class="card col-5">
+      <h3>Prioridad</h3>
+      <p class="hint">Criticidad de los hallazgos — clic para filtrar.</p>
+      <div class="chart-box short"><canvas id="chPrioridad"></canvas></div>
+    </div>
+
+    <div class="card col-7">
+      <h3>Responsable</h3>
+      <p class="hint">Quién es responsable de cada hallazgo, según el estado de aprobación. Clic para filtrar.</p>
+      <div class="court">
+        <div class="side ic" id="sideIC">
+          <div class="who"><span class="dot"></span>ICETEL</div>
+          <div class="big" id="icBig">0</div>
+          <div class="pct" id="icPct">Cotización · Ejecución · Cierre</div>
+        </div>
+        <div class="net"></div>
+        <div class="side nx" id="sideNX">
+          <div class="who">NextStream<span class="dot"></span></div>
+          <div class="big" id="nxBig">0</div>
+          <div class="pct" id="nxPct">Aprobación · Rechazo</div>
+        </div>
+      </div>
+      <div class="gestrows" id="gestrows"></div>
+    </div>
+
+    <div class="card col-12">
+      <h3>Hallazgos abiertos detectados en el tiempo
+        <span class="seg"><button data-gran="month" class="on">Por mes</button><button data-gran="year">Por año</button></span>
+      </h3>
+      <p class="hint">Solo hallazgos en estado <b>Abierto</b>, según su fecha de detección (INICIO).</p>
+      <div class="chart-box"><canvas id="chTime"></canvas></div>
+    </div>
+
+    <div class="card tablecard">
+      <div class="tabletop">
+        <div><h3 style="margin:0">Detalle de hallazgos</h3><p class="hint" style="margin:2px 0 0">Clic en una fila para ver observaciones y todos los campos.</p></div>
+        <div class="idcell" id="tcount">0 registros</div>
+      </div>
+      <div class="tablewrap">
+        <table id="tbl"><thead><tr id="thead"></tr></thead><tbody id="tbody"></tbody></table>
+      </div>
+    </div>
+  </div>
+
+  <footer id="footer">Herramienta cliente · los datos se procesan en tu navegador · Data Center San Martín</footer>
+</div>
+
+<div id="dropzone"><div class="ring">
+  <svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="#22D3EE" stroke-width="2"><path d="M12 16V4m0 0L8 8m4-4 4 4M4 20h16"/></svg>
+  <h2>Suelta tu archivo aquí</h2><p>.xlsx · .xls · .csv</p>
+</div></div>
+
+<div class="modal" id="modal"><div class="modal-box">
+  <div class="modal-h"><h3 id="mTitle">Hallazgo</h3><button class="x" id="mClose">×</button></div>
+  <div class="modal-body" id="mBody"></div>
+</div></div>
+
+<script>
+const EMBEDDED = {"headers": ["NÚMERO", "SALA", "EQUIPO", "TÍTULO", "ÁREA", "PRIORIDAD", "INICIO", "FINALIZACIÓN", "ESTADO", "OBSERVACIÓN", "COTIZACIÓN", "ESTADO COTIZACIÓN"], "colmap": {"id": 0, "sala": 1, "equipo": 2, "descripcion": 3, "area": 4, "prioridad": 5, "fecha": 6, "fechafin": 7, "estado": 8, "observaciones": 9, "cotizacion": 10, "gestion": 11}, "rows": [["DCSM-H2304-001", "Sala de agua potable SM48 p-2", "Bomba", "Reparación de bomba retirada por L2", "SSGG", "Alta", "2023-04-02", "", "Abierto", "Retirada el 02-04-26 por Soluciones constructivas", "", "En cotización"], ["DCSM-H2304-002", "SM48 azotea", "Techumbre/canaletas/bajadas de agua", "Reparación  de techumbre", "SSGG", "Alta", "2023-04-02", "", "Cerrado", "Reparada 1 techumbre por Nextstream 2025", "", "Trabajo finalizado"], ["DCSM-H2304-003", "SM48", "Acceso", "Acceso sin barrera de contención para posibles inundaciones", "SSGG", "Alta", "2023-04-02", "", "Abierto", "Muro de contención, posible inundación hacia salas de energía sm50 p -1", "", "Rechazada"], ["DCSM-H2304-004", "Sala de agua potable SM50 p-1", "Bombas, tablero", "Sala completa en mal estado, fuera de norma", "SSGG", "Alta", "2023-04-02", "", "Abierto", "En funcionamiento", "", "En cotización"], ["DCSM-H2304-005", "SM50 azotea", "Sistema de agu apotable", "Sistema de agua apotable", "SSGG", "Alta", "2023-04-02", "", "Cerrado", "Funcionando ok, viene L2 y arregal presostato, comenta que se requiere hacer mantención a los hidropack junto con las bombas, mínimo 3 veces al año", "", "Trabajo finalizado"], ["DCSM-H2304-006", "SM50 azotea", "Techumbre/canaletas/bajadas de agua", "Filtración de techumbre", "SSGG", "Alta", "2023-04-02", "", "Abierto", "Falta mantención y reparación", "", "En cotización"], ["DCSM-H2304-007", "SM50int.", "Techumbre/canaletas/bajadas de agua", "Filtración de techumbre", "SSGG", "Alta", "2023-04-02", "", "Abierto", "Falta mantención y reparación", "", "En cotización"], ["DCSM-H2307-001", "TIC 5", "ACU 01", "Fuga de refrigerante", "Clima", "Baja", "2023-07-01", "2023-09-11", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2307-002", "TIC 4", "ACU 02", "Fuga de refrigerante", "Clima", "Baja", "2023-07-23", "2023-10-03", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2308-001", "Datos", "ACU 04", "Falta motor evaporador", "Clima", "Baja", "2023-08-01", "", "N/A", "N/A", "N/A", "N/A"], ["DCSM-H2308-002", "Telxius", "ACU 01", "Fuga de refrigerante", "Clima", "Baja", "2023-08-01", "2023-09-05", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2308-003", "Telxius", "ACU 02 (440)", "Falla Compresor", "Clima", "Baja", "2023-08-01", "", "Abierto", "239-LPU-09-24 V0", "239-LPU-09-24 V0", "Rechazada"], ["DCSM-H2308-004", "Telxius", "ACU 05", "Válvula expansión con falla de regulación", "Clima", "Baja", "2023-08-01", "2025-06-18", "Cerrado", "Pendiente", "", "Trabajo finalizado"], ["DCSM-H2308-005", "Energía -2 SM48", "PCC HUAWEI A", "Banco de baterías en mal estado", "Energía", "Media", "2023-08-02", "", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2308-006", "Energía -2 SM48", "PCC HUAWEI B", "Banco de baterías en mal estado", "Energía", "Media", "2023-08-02", "", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2308-007", "Prepago", "ACU 02 (231)", "Fuga de refrigerante cto. 2", "Clima", "Baja", "2023-08-09", "", "Abierto", "066-LPU-03-24 V0", "066-LPU-03-24 V0", "Rechazada"], ["DCSM-H2308-008", "Prepago", "ACU 03 (230)", "Fuga de refrigerante cto. 2", "Clima", "Baja", "2023-08-09", "", "Abierto", "067-LPU-03-24 V0", "067-LPU-03-24 V0", "Rechazada"], ["DCSM-H2308-009", "SDH", "ACU 05", "Error F500 - Compresor", "Clima", "Baja", "2023-08-14", "2024-11-15", "Cerrado", "238-LPU-09-24 V0", "238-LPU-09-24 V0", "Trabajo finalizado"], ["DCSM-H2308-010", "Principal 9", "ACU 02", "Fuga de refrigerante cto. 2", "Clima", "Baja", "2023-08-16", "2023-09-01", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2308-011", "Energía -2 SM48", "ACU 01", "Fuga de refrigerante cto. 1", "Clima", "Baja", "2023-08-17", "2026-03-25", "Cerrado", "N/A", "", "Trabajo finalizado"], ["DCSM-H2308-012", "Energía -2 SM48", "ACU 02", "Fuga de refrigerante cto. 2", "Clima", "Baja", "2023-08-17", "2026-03-25", "Cerrado", "N/A", "", "Trabajo finalizado"], ["DCSM-H2308-013", "CPD", "ACU 03 (410)", "Fuga de refrigerante cto. 2", "Clima", "Baja", "2023-08-22", "", "Abierto", "Se envian dos LPU", "", "Rechazada"], ["DCSM-H2308-014", "CPD", "ACU 05", "Falla Compresor cto. 1", "Clima", "Baja", "2023-08-22", "2024-09-10", "Cerrado", "225-LPU-09-24 V0", "225-LPU-09-24 V0", "Trabajo finalizado"], ["DCSM-H2308-015", "CPD", "ACU 05 (409)", "Falla transductor de presión cto. 2", "Clima", "Baja", "2023-08-22", "", "Abierto", "301-LPU-12-24 V0", "301-LPU-12-24 V0", "Rechazada"], ["DCSM-H2308-016", "Midrange", "ACU 02", "Fuga de refrigerante cto. 1. (Compresor con ruido mecánico).", "Clima", "Baja", "2023-08-22", "", "Abierto", "Pendiente", "", "En cotización"], ["DCSM-H2308-017", "Midrange", "ACU 01", "Fuga de refrigerante cto. 2", "Clima", "Baja", "2023-08-22", "2024-01-12", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2308-018", "Midrange", "ACU 03", "Válvula expansión con falla cto. 2", "Clima", "Baja", "2023-08-22", "", "Abierto", "Pendiente", "", "En cotización"], ["DCSM-H2308-019", "Midrange", "ACU 02", "Fuga de refrigerante cto. 2", "Clima", "Baja", "2023-08-22", "2024-01-12", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2308-020", "Móvil", "ACU 01", "Válvula expansión con falla de regulación cto. 1", "Clima", "Baja", "2023-08-28", "", "Abierto", "Pendiente", "", "N/A"], ["DCSM-H2308-021", "Móvil", "ACU 03", "Válvula expansión con falla de regulación cto. 1", "Clima", "Baja", "2023-08-28", "2026-05-15", "Cerrado", "Equipo retirado por proyecto denver", "", "N/A"], ["DCSM-H2308-022", "Móvil", "ACU 03", "Falla Compresor cto. 2", "Clima", "Baja", "2023-08-28", "2026-05-15", "Cerrado", "Equipo retirado por proyecto denver", "", "N/A"], ["DCSM-H2308-023", "CCI", "ACU 01", "Fuga de refrigerante cto. 1", "Clima", "Baja", "2023-08-28", "", "Cerrado", "N/A", "", "N/A"], ["DCSM-H2308-024", "CCI", "ACU 01", "Fuga de refrigerante cto. 2", "Clima", "Baja", "2023-08-28", "2023-09-11", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2308-025", "Alcatel", "ACU 01", "Falla motor condensador", "Clima", "Baja", "2023-08-29", "2023-12-25", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2308-026", "Alcatel", "ACU 02", "Falla motor condensador", "Clima", "Baja", "2023-08-29", "2024-07-02", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2309-001", "TIC 2", "TABLERO TDU L", "Cto 18 capacidad 10A, funcionando en límite de capacidad 9,7A", "Energía", "Baja", "2023-09-04", "2023-10-25", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2309-002", "TIC 2", "TABLERO TDU K", "Cto 23 capacidad 20A, funcionando en límite de capacidad 18A", "Energía", "Baja", "2023-09-04", "2023-10-25", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2309-003", "Energía -1 SM50", "ACU 003 UPS", "Fuera de servicio por fuga", "Clima", "Baja", "2023-09-06", "", "Abierto", "245-LPU-09-24 V0", "245-LPU-09-24 V0", "Rechazada"], ["DCSM-H2309-004", "TX", "ACU 01", "Cto 2 fuera de servicio por fuga", "Clima", "Baja", "2023-09-07", "", "Cerrado", "N/A", "", "Trabajo finalizado"], ["DCSM-H2309-005", "TX", "ACU 03", "Cto 1 fuera de servicio por fuga, Sin ventilador de evaporador", "Clima", "Baja", "2023-09-07", "", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2309-006", "TX", "ACU 03", "Cto 2 fuera de servicio por fuga, Sin ventilador de evaporador", "Clima", "Baja", "2023-09-07", "", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2309-007", "Conmutación", "ACU 02", "Fuga de refrigerante", "Clima", "Baja", "2023-09-08", "2024-04-18", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2309-008", "TIC 1", "ACU 01 (101)", "Fuga de refrigerante cto. 1", "Clima", "Baja", "2023-09-25", "", "Abierto", "Pendiente", "", "En cotización"], ["DCSM-H2309-009", "TIC 1", "ACU 02 (102)", "Fuga de refrigerante cto. 1", "Clima", "Baja", "2023-09-25", "", "Abierto", "241-LPU-09-24 V0", "241-LPU-09-24 V0", "Rechazada"], ["DCSM-H2309-010", "TIC 1", "ACU 04 (100)", "Fuga de refrigerante cto. 1", "Clima", "Baja", "2023-09-25", "", "Abierto", "063-LPU-03-24 V0", "063-LPU-03-24 V0", "Rechazada"], ["DCSM-H2309-011", "TIC 1", "ACU 04", "Fuga de refrigerante cto. 2", "Clima", "Baja", "2023-09-25", "2023-01-04", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2309-012", "TIC 2", "ACU 01", "Cto 1 fuera de servicio por fuga", "Clima", "Baja", "2023-09-26", "2023-11-17", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2309-013", "TIC 2", "ACU 03", "Cto 1 fuera de servicio por fuga, motor evaporador n°2 fuera de servicio", "Clima", "Baja", "2023-09-26", "2023-12-01", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2309-014", "Energía -2 SM48", "GEN2", "Flexible de entrada de combustible se encuentra con filtración.", "Energía", "Baja", "2023-09-26", "2023-10-23", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2309-015", "Energía -2 SM48", "RECTIFICADORES EATON", "Módulos rectificadores con alarma 6 unidades (led quemado, ausencia de fase) en servicio al 50%", "Energía", "Media", "2023-09-27", "2026-02-01", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2309-016", "Energía -2 SM48", "BB PCC EATON 1", "Banco de baterías N3 con baterías trizadas (peligro de derrame).", "Energía", "Media", "2023-09-27", "2026-02-01", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2309-017", "TIC 3", "ACU 01", "Fuera de servicio por fuga", "Clima", "Baja", "2023-09-27", "2023-12-21", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2309-018", "Patio TJ", "GEN7", "Correa del alternador y de ventiladores se encuentran gastadas.", "Energía", "Baja", "2023-09-27", "2023-10-06", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2309-019", "TIC 5", "ACU 01", "cto 1 con fuga de refrigerante", "Clima", "Baja", "2023-09-28", "2023-12-27", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2309-020", "TIC 5", "ACU 02", "Cto 2 fuera de servicio por compresor en corte, motor evaporador N°1 fuera de servicio", "Clima", "Baja", "2023-09-28", "", "Abierto", "Pendiente", "", "N/A"], ["DCSM-H2309-021", "TIC 5", "ACU 03", "Motor evaporador N°1 fuera de servicio, Condensador N°4 fuera de servicio", "Clima", "Baja", "2023-09-28", "2024-07-17", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2309-022", "TIC 5", "ACU 04", "Motor evaporador N°1 fuera de servicio.", "Clima", "Baja", "2023-09-28", "2024-06-24", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2309-023", "NOC 2", "ACU 02 (502)", "Cto 2 fuera de servicio por problemas mecanicos en compresor", "Clima", "Baja", "2023-09-29", "", "Abierto", "Pendiente", "", "En cotización"], ["DCSM-H2310-001", "Principal 9", "ACU 02", "Cto 1 fuera de servicio por compresor con falla mecánica", "Clima", "Baja", "2023-10-03", "2024-02-14", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2310-002", "TIC 4", "ACU 01", "Cto 1 fuera de servicio por fuga", "Clima", "Baja", "2023-10-04", "2024-02-14", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2310-003", "TIC 4", "ACU 03 (207)", "Cto 1 fuera de servicio por fuga/compresor en corte", "Clima", "Baja", "2023-10-04", "", "Abierto", "Pendiente", "", "En cotización"], ["DCSM-H2310-004", "TIC 4", "ACU 04", "Cto 1 fuera de servicio por fuga", "Clima", "Baja", "2023-10-04", "2023-11-28", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2310-005", "TIC 4", "ACU 07", "Cto 1 fuera de servicio por fuga", "Clima", "Baja", "2023-10-04", "2023-12-01", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2310-006", "TIC 4", "ACU 08", "Cto 2 fuera de servicio por fuga", "Clima", "Baja", "2023-10-04", "2025-09-15", "Cerrado", "059-LPU-03-24 V0", "059-LPU-03-24 V0", "Trabajo finalizado"], ["DCSM-H2310-007", "TIC 4", "ACU 09 (212)", "Cto 2 fuera de servicio por fuga", "Clima", "Baja", "2023-10-04", "", "Abierto", "064-LPU-03-24 V0", "064-LPU-03-24 V0", "Rechazada"], ["DCSM-H2310-008", "Energía -1 SM50", "UPS A RESP.", "Falla módulo potencia UPS", "Energía", "Alta", "2023-10-04", "2023-10-05", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2310-009", "Banda Ancha", "ACU 01", "Motor evaporador 01 fuera de servicio por falla mecánica", "Clima", "Baja", "2023-10-05", "", "N/A", "", "", "N/A"], ["DCSM-H2310-010", "TIC 6", "ACU 01", "Cto 1 con baja carga de refrigerante, se cargan 3,5 KG de R407c ( en observación)", "Clima", "Baja", "2023-10-06", "2023-10-06", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2310-011", "TIC 6", "ACU 04", "Cto 2 fuera de servicio por fuga", "Clima", "Baja", "2023-10-06", "2024-12-18", "Cerrado", "060-LPU-03-24 V0", "060-LPU-03-24 V0", "Trabajo finalizado"], ["DCSM-H2310-012", "TIC 6", "ACU 06", "Cto 1 fuera de servicio por fuga", "Clima", "Baja", "2023-10-06", "2023-12-19", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2310-013", "Mundo", "ACU 01 (76)", "Fuera de servicio por fuga Clima", "Clima", "Baja", "2023-10-10", "", "N/A", "", "", "N/A"], ["DCSM-H2310-014", "CPD", "ACU 04 (407)", "Cto 1 fuera de servicio por mezcla de refrigerante/ Cto 2 por fuga", "Clima", "Baja", "2023-10-12", "", "Abierto", "Pendiente", "", "En cotización"], ["DCSM-H2310-015", "Energía -1 SM50", "UPS RESPALDO TIC 6", "Falla en 2 ventiladores", "Energía", "Alta", "2023-10-18", "2023-10-19", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2310-016", "Torre de enfriamiento", "Bomba 02B Torre 02", "Fuera de servicio por filtración en sello mecánico", "Clima", "Baja", "2023-10-26", "", "N/A", "Se envian dos LPU", "", "N/A"], ["DCSM-H2310-017", "Energía -1 SM50", "UPS 1 EMERSON  TIC 1", "Deformacion de onda senoidal salida inversor", "Energía", "Media", "2023-10-30", "2024-06-03", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2310-018", "Datos", "ACU 03", "Cto 1 con falla de compresor", "Clima", "Baja", "2023-10-30", "2023-11-14", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2311-001", "Energía -1 TJ65", "GEN 1", "falla breaker entrada red TTA", "Energía", "Media", "2023-11-22", "2023-11-22", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2311-002", "Patio TJ", "TRANSFORMADOR 1 E2", "Falla de electrodos de conectores MT Fases 1, 2 y 3", "Energía", "Alta", "2023-11-28", "2023-11-29", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2311-003", "Patio TJ", "TRANSFORMADOR 1 E2", "Falla TAPS Cambiador nivel de tensión (filtración)", "Energía", "Alta", "2023-11-28", "", "Cerrado", "Pendiente", "", "Trabajo finalizado"], ["DCSM-H2311-004", "Patio TJ", "TRANSFORMADOR 1 E2", "Empaquetadura bushing fisurada", "Energía", "Alta", "2023-11-28", "", "Abierto", "Pendiente", "", "En cotización"], ["DCSM-H2312-001", "Energía -1 TJ65", "TRANSFORMADOR 1 E1", "Válvula superior con filtración por niple", "Energía", "Alta", "2023-12-01", "", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2312-002", "Energía -1 TJ65", "TRANSFORMADOR 1 E1", "Válvula de drenaje con filtración por bastago", "Energía", "Alta", "2023-12-01", "", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2312-003", "Energía -1 TJ65", "TRANSFORMADOR 2 E1", "Válvula superior con filtración por niple", "Energía", "Alta", "2023-12-01", "", "Abierto", "Pendiente", "", "En cotización"], ["DCSM-H2312-004", "Energía -1 TJ65", "TRANSFORMADOR 2 E1", "Válvula de drenaje Con filtración por vástago", "Energía", "Alta", "2023-12-01", "", "Abierto", "Pendiente", "", "En cotización"], ["DCSM-H2312-005", "Energía -1 TJ65", "TRANSFORMADOR 2 E1", "Filtración con cambiador de derivaciones", "Energía", "Alta", "2023-12-01", "", "Abierto", "Pendiente", "", "En cotización"], ["DCSM-H2401-001", "TIC 1", "ACU 01 (101)", "Fuga de refrigerante cto. 2", "Clima", "Baja", "2024-01-08", "", "Abierto", "228-LPU-09-24 V0", "228-LPU-09-24 V0", "Rechazada"], ["DCSM-H2401-002", "Patio TJ", "ESTANQUE 21000LT", "Tapa carga combustible", "Energía", "Baja", "2024-01-10", "2024-02-28", "cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2401-003", "Energía -1 TJ65", "Diperk 2", "Se debe cambia flexible de alimentación estanque diario", "Energía", "Media", "2024-01-22", "", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2401-004", "Energía -1 TJ65", "Diperk 2", "Panal de radiador con rastros suciedad", "Energía", "Media", "2024-01-22", "", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2401-005", "Energía -2 SM48", "GENERADOR 2 (PALMERO 2)", "Filtración de combustible al aceite", "Energía", "Media", "2024-01-23", "2024-01-31", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2401-006", "Energía -2 SM48", "GENERADOR 4 (ATLAS)", "Bomba de llenado automático en falla", "Energía", "Media", "2024-01-25", "", "Abierto", "", "", "En cotización"], ["DCSM-H2401-007", "Patio TJ", "GENERADOR 7 - CATERPILLAR", "flexible de alimentación y retorno de combustible mal estado", "Energía", "Media", "2024-01-25", "2024-06-05", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2401-008", "Patio TJ", "GENERADOR 7 - CATERPILLAR", "Panal de radiador con rastros suciedad", "Energía", "Media", "2024-01-25", "2024-06-05", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2401-009", "Nokia", "ACU 01", "Compresor en corte", "Clima", "Baja", "2024-01-29", "2024-08-23", "Cerrado", "180-LPU-07-24 V0", "180-LPU-07-24 V0", "Trabajo finalizado"], ["DCSM-H2401-010", "Energía -1 TJ65", "Cummins", "Refrigerante en mal estado", "Energía", "Media", "2024-01-30", "", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2401-011", "Energía -1 TJ65", "Cummins", "Bomba de combustible con fuga", "Energía", "Media", "2024-01-30", "", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2401-012", "Energía -1 TJ65", "Cummins", "Tapones en block con fuga refrigerante", "Energía", "Media", "2024-01-30", "", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2401-013", "TIC 5", "ACU 01", "Fuga de refrigerante en cto 01", "Clima", "Baja", "2024-01-30", "2024-02-01", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2402-001", "Torre de enfriamiento", "Torre de enfriamiento 01", "Relleno en mal estado", "Clima", "Baja", "2024-02-20", "", "N/A", "197-LPU-07-24 V0", "197-LPU-07-24 V0", "Rechazada"], ["DCSM-H2402-002", "Torre de enfriamiento", "Bomba 01A Torre 01", "filtración en sello mecánico", "Clima", "Baja", "2024-02-22", "", "N/A", "Se envian dos LPU", "", "N/A"], ["DCSM-H2402-003", "Torre de enfriamiento", "Torre de enfriamiento 01", "Flotador en mal estado", "Clima", "Baja", "2024-02-23", "2024-06-07", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2402-004", "Torre de enfriamiento", "Torre de enfriamiento 02", "Relleno en mal estado", "Clima", "Baja", "2024-02-27", "", "N/A", "197-LPU-07-24 V0", "197-LPU-07-24 V0", "Rechazada"], ["DCSM-H2402-005", "Torre de enfriamiento", "Torre de enfriamiento 02", "Flotador en mal estado", "Clima", "Baja", "2024-02-28", "2024-06-14", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2403-001", "CPD", "ACU 10", "Compresor con falla mecánica", "Clima", "Baja", "2024-03-02", "2024-05-10", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2403-002", "TIC 5", "ACU 03", "Cto 2 fuera de servicio por fuga", "Clima", "Baja", "2024-03-13", "2024-07-17", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2403-003", "Telxius", "ACU 01", "Compresor con sobre consumo", "Clima", "Baja", "2024-03-15", "2024-03-21", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2403-004", "Móvil", "ACU 02", "Cto 1 fuera de servicio por fuga", "Clima", "Baja", "2024-03-21", "2024-03-22", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2403-005", "Principal 9", "Tablero TDU", "Puerta mal estado.", "Energía", "Baja", "2024-03-26", "", "Cerrado", "N/A", "", "Trabajo finalizado"], ["DCSM-H2403-006", "GSM", "AHC 01 (228)", "Pantalla fuera de servicio.", "Clima", "Baja", "2024-03-27", "", "Abierto", "N/A", "", "N/A"], ["DCSM-H2404-001", "Energía -1 TJ65", "Diperk 2", "Sensor de H2O, con variaciones de T", "Energía", "Media", "2024-04-02", "2024-04-12", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2404-002", "Energía -1 SM50", "UPS RESP TIC 2-3", "1 Ventilador detenido", "Energía", "Media", "2024-04-03", "2026-03-22", "Cerrado", "N/A", "", "Trabajo finalizado"], ["DCSM-H2404-003", "Energía -1 SM50", "UPS RESP TIC 4", "1 Ventilador con pérdida de potencia", "Energía", "Media", "2024-04-03", "2024-06-26", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2404-004", "Principal 9", "ACU 01", "Soporte de eje de motor evaporador desplazada", "Clima", "Baja", "2024-04-05", "2024-04-05", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2404-005", "Patio Atlas", "GENERADOR 4 (ATLAS)", "Baterías fuera de su vida útil", "Energía", "Baja", "2024-04-05", "2024-04-12", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2404-006", "Energía -1 TJ65", "GENERADOR 6 (DIPERK 2)", "Perno de culatín cortado", "Energía", "Baja", "2024-04-05", "2024-04-05", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2404-007", "Energía -1 SM50", "BB UPS 4 TIC 5", "4 baterías fuera de rango", "Energía", "Baja", "2024-04-11", "2024-04-11", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2404-008", "TIC 5", "ACU 04", "Fuga de refrigerante cto. 2", "Clima", "Baja", "2024-04-14", "2024-04-22", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2404-009", "RESO", "UPS 2 RESO", "Batería N°22 Fuera de rango", "Energía", "Baja", "2024-04-17", "2024-04-17", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2404-010", "RESO", "UPS 3 RESO", "Batería N°06 Fuera de rango", "Energía", "Baja", "2024-04-17", "2024-04-17", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2404-011", "TIC 5", "ACU 04", "Fuga de refrigerante cto. 1", "Clima", "Baja", "2024-04-18", "2024-04-18", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2404-012", "TIC 1", "UPS EMERSON TIC 1", "Deformación de onda senoidal salida inversor, 3 Ventiladores detenidos.", "Energía", "Media", "2024-04-23", "2024-04-23", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2404-013", "TIC 4", "UPS 2 TIC 4", "Ruido en la red entrada UPS 100Hz", "Energía", "Media", "2024-04-23", "2024-07-24", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2404-014", "TIC 5", "UPS RESPALDO B TIC 5", "Alarma Fin de vida útil inversor.", "Energía", "Media", "2024-04-23", "", "Cerrado", "N/A", "", "Trabajo finalizado"], ["DCSM-H2404-015", "Energía -1 SM50", "USP RESPALDO RIELLO", "UPS con consumo por condensadores obsoletos.", "Energía", "Media", "2024-04-23", "", "Cerrado", "N/A", "", "Trabajo finalizado"], ["DCSM-H2404-016", "TIC 4", "ACU 04", "Circuito 2, Fuera de servicio por problemas regulación en la válvula de expansión.", "Clima", "Baja", "2024-04-25", "2025-09-30", "Cerrado", "Pendiente", "", "Trabajo finalizado"], ["DCSM-H2405-001", "CCI", "ACU 02", "Cto 2 fuera de servicio por fuga", "Clima", "Baja", "2024-05-06", "", "Abierto", "160-LPU-06-24 V0", "160-LPU-06-24 V0", "Rechazada"], ["DCSM-H2405-002", "Energía -1 TJ65", "GENERADOR 5 - DIPERK 1", "Manguera a enfriador de combustible agrietada", "Energía", "Baja", "2024-05-07", "", "Cerrado", "224-LPU-09-24 V0", "224-LPU-09-24 V0", "Trabajo finalizado"], ["DCSM-H2405-003", "Energía -1 TJ65", "GENERADOR 6 - DIPERK 2", "Manguera de retorno y llenado de combustible agrietadas", "Energía", "Baja", "2024-05-07", "", "Cerrado", "226-LPU-09-24 V0", "226-LPU-09-24 V0", "Trabajo finalizado"], ["DCSM-H2405-004", "Energía -1 TJ65", "GENERADOR 6 - DIPERK 2", "Batería al 15 % de su capacidad", "Energía", "Baja", "2024-05-07", "2024-07-30", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2405-005", "Energía -1 TJ65", "GENERADOR 1 - PALMERO 1", "Calefactor quemado", "Energía", "Baja", "2024-05-07", "2024-06-05", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2405-006", "Patio TJ", "GENERADOR 7 - CATERPILLAR", "Rastro de oxido en estanque de combustible", "Energía", "Baja", "2024-05-07", "2024-06-05", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2405-007", "TIC 4", "ACU 07", "Falla motor condensador", "Clima", "Baja", "2024-05-08", "2024-05-18", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2405-008", "GSM", "AHC 01  (228)", "Compresor con falla eléctrica. Motor Evaporador 1 en corto circuito.", "Clima", "Baja", "2024-05-14", "", "Abierto", "168-LPU-06-24 V0", "168-LPU-06-24 V0", "Rechazada"], ["DCSM-H2405-009", "PSSBA", "ACU 01", "Fuera de servicio por fuga", "Clima", "Baja", "2024-05-15", "2024-10-01", "Cerrado", "161-LPU-06-24 V0", "161-LPU-06-24 V0", "Trabajo finalizado"], ["DCSM-H2405-010", "Azotea SM44", "CHILLER 1 y 2", "Falla de manómetros diferenciales", "Clima", "Baja", "2024-05-15", "2024-05-15", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2405-011", "Principal 9", "ACU 01", "Base de Motor Evaporador desnivelada", "Clima", "Baja", "2024-05-23", "2024-05-23", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2405-012", "TIC 4", "ACU 07", "Falla motor condensador", "Clima", "Baja", "2024-05-24", "2024-05-24", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2405-013", "Energía -1 SM50", "ACU 04", "Falla motor condensador", "Clima", "Baja", "2024-05-24", "2024-05-24", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2405-014", "SDH", "ACU 01", "Fuera de servicio por sobre consumo de compresor", "Clima", "Baja", "2024-05-24", "", "Abierto", "232-LPU-09-24 V0", "232-LPU-09-24 V0", "Rechazada"], ["DCSM-H2405-015", "SDH", "ACU 06", "Mantiene válvula de expansión electrónica desconectada", "Clima", "Baja", "2024-05-24", "", "N/A", "Pendiente", "", "N/A"], ["DCSM-H2405-016", "CPD", "ACU 08", "Fuga de refrigerante cto. 2", "Clima", "Baja", "2024-05-24", "2024-07-05", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2405-017", "Torre de enfriamiento", "Torre Enfriamiento 01", "Falla Correa de transmisión B138", "Clima", "Baja", "2024-05-25", "2024-05-25", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2405-018", "Principal 9", "ACU 01", "Falla de Rodamientos Chumacera", "Clima", "Baja", "2024-05-30", "2024-05-30", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2407-001", "Torre de enfriamiento", "Bomba 01B Torre 01", "filtración en sello mecánico", "Clima", "Baja", "2024-07-01", "", "N/A", "Se envian dos LPU", "", "N/A"], ["DCSM-H2407-002", "Principal 9", "ACU 01", "Correas de motor evaporador cortadas", "Clima", "Baja", "2024-07-04", "2024-07-04", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2407-003", "Conmutación", "ACU 03", "Válvula G con falla.", "Clima", "Baja", "2024-07-08", "", "Cerrado", "287-LPU-11-24 V0", "287-LPU-11-24 V0", "Rechazada"], ["DCSM-H2407-004", "GSM", "AHC 01  (228)", "Motor Evaporador 1 en corto circuito.", "Clima", "Baja", "2024-07-10", "", "Abierto", "266-LPU-10-24 V0", "266-LPU-10-24 V0", "Rechazada"], ["DCSM-H2407-005", "Energía -1 SM50", "Bat 21 BB n°3 UPS TIC 2-3", "Bateria fuera de rango", "Energía", "Baja", "2024-07-11", "2024-07-11", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2407-006", "Principal 9", "ACU 03", "Fallar motor condensador", "Clima", "Baja", "2024-07-12", "2024-07-12", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2407-007", "Datos", "ACU 03", "Compresor con falla eléctrica.", "Clima", "Baja", "2024-07-12", "2024-09-09", "Cerrado", "198-LPU-08-24 V0", "198-LPU-08-24 V0", "Trabajo finalizado"], ["DCSM-H2407-008", "Principal 9", "ACU 02", "Fuga en el evaporador", "Clima", "Baja", "2024-07-19", "", "N/A", "N/A", "", "N/A"], ["DCSM-H2407-009", "Midrange", "ACU 01 (78)", "Fuera de servicio por fuga cto. 1", "Clima", "Baja", "2024-07-19", "2024-10-01", "Cerrado", "242-LPU-09-24 V0", "242-LPU-09-24 V0", "Trabajo finalizado"], ["DCSM-H2407-010", "CPD", "ACU 04", "Fuera de servicio por fuga cto. 2", "Clima", "Baja", "2024-07-23", "2025-02-14", "Cerrado", "159-LPU-06-24 V0", "159-LPU-06-24 V0", "Trabajo finalizado"], ["DCSM-H2407-011", "CPD", "ACU 06 (408)", "Fuera de servicio por falta de compresor cto. 1", "Clima", "Baja", "2024-07-23", "", "Abierto", "Pendiente", "", "En cotización"], ["DCSM-H2407-012", "CPD", "ACU 07", "Falla pantalla HMI", "Clima", "Baja", "2024-07-23", "2025-12-01", "Cerrado", "N/A", "", "Trabajo finalizado"], ["DCSM-H2407-013", "RESO", "IRW 15", "Fuera de servicio por fuente de poder", "Clima", "Baja", "2024-07-24", "", "Abierto", "Pendiente", "", "En cotización"], ["DCSM-H2407-014", "Energía -1 SM50", "Bat 29 BB n°2 UPS A SM 48", "Bateria fuera de rango", "Energía", "Baja", "2024-07-26", "2024-07-26", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2407-015", "Energía -1 SM50", "Bat 10 BB n°1 UPS R RESO", "Bateria fuera de rango", "Energía", "Baja", "2024-07-26", "", "Cerrado", "N/A", "", "Trabajo finalizado"], ["DCSM-H2407-016", "Energía -1 TJ65", "Calefactor", "Calefactor con falla electrica / Filtracion en manifold de refrigerante", "Energía", "Baja", "2024-07-29", "2024-07-29", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2407-017", "Azotea SM44", "CHILLER 01", "Perdida de carga de refrigerante cto. 1", "Clima", "Baja", "2024-07-31", "2024-10-25", "Cerrado", "123-LPU-05-24 V2", "123-LPU-05-24 V2", "Trabajo finalizado"], ["DCSM-H2408-001", "Energía -2 SM48", "GENERADOR 3 - PALMERO 3", "Rastro de combustible en linea de retorno (codo)", "Energía", "Baja", "2024-08-01", "", "Abierto", "222-LPU-09-24 V0", "222-LPU-09-24 V0", "Rechazada"], ["DCSM-H2408-002", "TIC 4", "ACU 01 (205)", "Fuera de servicio por compresor en falla cto. 1", "Clima", "Baja", "2024-08-06", "", "Abierto", "263-LPU-10-24 V0", "263-LPU-10-24 V0", "Rechazada"], ["DCSM-H2408-003", "TIC 5", "ACU 01", "Fuera de servicio por fuga cto. 1", "Clima", "Baja", "2024-08-06", "2024-08-06", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2408-004", "TIC 2", "ACU 03 (107)", "Motor Evaporador 1 en corto circuito.", "Clima", "Baja", "2024-08-06", "", "N/A", "Pendiente", "", "N/A"], ["DCSM-H2408-005", "TIC 2", "ACU 03 (107)", "Fuera de servicio por fuga cto. 2", "Clima", "Baja", "2024-08-07", "", "N/A", "020-LPU-02-25 V0", "020-LPU-02-25 V0", "N/A"], ["DCSM-H2408-006", "CrossConnect", "ACU 01", "Fuera de servicio por fuga cto. 1", "Clima", "Baja", "2024-08-07", "2024-08-13", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2408-007", "TIC 2", "ACU 03 (107)", "Fuera de servicio por compresor en falla cto. 1", "Clima", "Baja", "2024-08-07", "", "N/A", "068-LPU-03-24 V0", "068-LPU-03-24 V0", "N/A"], ["DCSM-H2408-008", "Principal 9", "ACU 02", "Correas de motor evaporador cortadas", "Clima", "Baja", "2024-08-14", "2024-08-14", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2408-009", "NOC 2", "ACU 02 (502)", "Falla de válvula de expansión electrónica.", "Clima", "Baja", "2024-08-14", "", "Abierto", "Pendiente", "", "En cotización"], ["DCSM-H2408-010", "TIC 5", "ACU 01", "Base de Motor Evaporador averiada", "Clima", "Baja", "2024-08-16", "2024-08-16", "Cerrado", "En revisión", "", "Trabajo finalizado"], ["DCSM-H2408-011", "Alcatel", "ACU 02", "Falla motor condensador", "Clima", "Baja", "2024-08-19", "2024-08-19", "Cerrado", "Pendiente", "", "Trabajo finalizado"], ["DCSM-H2408-012", "TX", "ACU 04", "Falla motor condensador", "Clima", "Baja", "2024-08-19", "2024-08-19", "Cerrado", "Pendiente", "", "Trabajo finalizado"], ["DCSM-H2408-013", "Energía -1 SM50", "Banco de bateria 1", "Falla en celda n°4 BCC 1 PCC ELTEK", "Energía", "Baja", "2024-08-19", "2024-10-04", "cerrado", "219-LPU-08-24 V0", "219-LPU-08-24 V0", "Trabajo finalizado"], ["DCSM-H2408-014", "Banda Ancha", "ACU 01", "Falla Motor Evaporador N°1.", "Clima", "Baja", "2024-08-20", "", "Abierto", "Pendiente", "", "En cotización"], ["DCSM-H2408-015", "Principal 9", "ACU 01", "Falla de Rodamientos Chumacera", "Clima", "Baja", "2024-08-22", "2024-08-23", "Cerrado", "Pendiente", "", "Trabajo finalizado"], ["DCSM-H2409-001", "CPD", "ACU 06", "Fuera de servicio por fuga cto. 2", "Clima", "Baja", "2024-09-03", "2024-09-13", "Cerrado", "223-LPU-09-24 V0", "223-LPU-09-24 V0", "Trabajo finalizado"], ["DCSM-H2409-002", "CPD", "ACU 05 (409)", "Fuera de servicio por compresor en falla cto. 2", "Clima", "Baja", "2024-09-13", "", "Abierto", "301-LPU-12-24 V0", "301-LPU-12-24 V0", "Rechazada"], ["DCSM-H2409-003", "TIC 5", "ACU 01", "Falla motor condensador", "Clima", "Baja", "2024-09-17", "2024-09-17", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2409-004", "TIC 4", "ACU 211", "Fuera de servicio por fuga cto. 2", "Clima", "Baja", "2024-09-24", "", "Abierto", "259-LPU-10-24 V0", "259-LPU-10-24 V0", "Rechazada"], ["DCSM-H2409-005", "Energía -1 TJ65", "GENERADOR 5 - DIPERK 1", "Rastro de combustible en purgador", "Energía", "Baja", "2024-09-25", "2025-03-12", "Cerrado", "268-LPU-10-24 V0", "268-LPU-10-24 V0", "Trabajo finalizado"], ["DCSM-H2410-001", "CPD", "ACU 08", "Fuera de servicio por compresor en falla cto. 1", "Clima", "Baja", "2024-10-01", "2024-11-07", "Cerrado", "256-LPU-10-24 V0", "256-LPU-10-24 V0", "Trabajo finalizado"], ["DCSM-H2410-002", "TIC 5", "ACU 01", "Correas de motor evaporador cortadas", "Clima", "Baja", "2024-10-06", "2024-06-10", "Cerrado", "", "", "N/A"], ["DCSM-H2410-003", "Principal 9", "ACU 01", "Falla en automático motor evaporador", "Clima", "Baja", "2024-10-14", "2024-10-14", "Cerrado", "", "", "N/A"], ["DCSM-H2410-004", "Principal 9", "ACU 02", "Falla motor condensador", "Clima", "Baja", "2024-10-16", "2024-10-16", "Cerrado", "", "", "N/A"], ["DCSM-H2410-005", "TIC 5", "ACU 03", "Fuera de servicio por fuga cto. 1", "Clima", "Baja", "2024-10-21", "2024-10-23", "Cerrado", "", "", "N/A"], ["DCSM-H2410-006", "TIC 6", "ACU 03 (215)", "Fuera de servicio por fuga cto. 2", "Clima", "Baja", "2024-10-21", "", "N/A", "272-LPU-10-24 V0", "272-LPU-10-24 V0", "N/A"], ["DCSM-H2410-007", "TIC 6", "ACU 06 (218)", "Fuera de servicio por fuga cto. 1", "Clima", "Baja", "2024-10-21", "", "N/A", "039-LPU-04-25 V0", "039-LPU-04-25 V0", "N/A"], ["DCSM-H2410-008", "CPD", "ACU 08", "Fuera de servicio por compresor en falla cto. 2", "Clima", "Baja", "2024-10-26", "2024-10-29", "Cerrado", "Pendiente", "", "Trabajo finalizado"], ["DCSM-H2410-009", "CCI", "ACU 01", "Falla en automático Compresor Cto. 2", "Clima", "Baja", "2024-10-28", "2024-10-28", "Cerrado", "N/A", "", "Trabajo finalizado"], ["DCSM-H2411-001", "Alcatel", "ACU 02", "Falla motor condensador (Capacitor)", "Clima", "Baja", "2024-11-04", "2024-11-04", "Cerrado", "N/A", "", "Trabajo finalizado"], ["DCSM-H2411-002", "SDH", "ACU 06", "Fuera de servicio por compresor en falla", "Clima", "Baja", "2024-11-11", "", "Abierto", "Pendiente", "", "En cotización"], ["DCSM-H2411-003", "TIC 1", "ACU 03", "Falla motor condensador Cto 2", "Clima", "Baja", "2024-11-15", "2024-11-15", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2411-004", "Datos", "ACU 01", "Falla motor condensador", "Clima", "Baja", "2024-11-17", "2024-11-17", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2411-005", "CPD", "ACU 03 (410)", "Fuera de servicio por falta de compresor cto. 2", "Clima", "Baja", "2024-11-18", "", "Abierto", "254-LPU-10-24 V0", "254-LPU-10-24 V0", "Rechazada"], ["DCSM-H2411-006", "Datos", "ACU 01", "Falla motor condensador", "Clima", "Baja", "2024-11-19", "2024-11-19", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2411-007", "Datos", "ACU 01", "Falla motor condensador", "Clima", "Baja", "2024-11-21", "2024-11-21", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2411-008", "Energía -1 TJ65", "Celda MT", "Averia en seguro mecanico de celda MT", "Energía", "Media", "2024-11-21", "", "Abierto", "017-LPU-02-25 V0", "017-LPU-02-25 V0", "Rechazada"], ["DCSM-H2411-009", "Principal 9", "ACU 02", "Falla motor condensador cto 1.", "Clima", "Baja", "2024-11-22", "2024-11-22", "Cerrado", "", "", "N/A"], ["DCSM-H2411-010", "Datos", "ACU 02", "Motor Evaporador 1 de menor capacidad (Adaptado).", "Clima", "Baja", "2024-11-26", "2024-11-26", "Cerrado", "", "", "N/A"], ["DCSM-H2411-011", "TIC 2", "ACU 04", "Sin Motor condensador cto 2.", "Clima", "Baja", "2024-11-27", "2024-11-27", "Cerrado", "", "", "N/A"], ["DCSM-H2412-001", "Datos", "ACU 02", "Falla motor condensador", "Clima", "Baja", "2024-12-09", "2024-12-09", "Cerrado", "", "", "N/A"], ["DCSM-H2412-002", "Midrange", "ACU 02", "Falla motor condensador", "Clima", "Baja", "2024-12-12", "2024-12-12", "Cerrado", "", "", "N/A"], ["DCSM-H2412-003", "TIC 6", "ACU 04", "Falla motor condensador Cto 2", "Clima", "Baja", "2024-12-19", "2024-12-19", "Cerrado", "", "", "N/A"], ["DCSM-H2412-004", "TIC 5", "ACU 01", "Filtración de refrigerante por presostato baja presion Cto 1.", "Clima", "Baja", "2024-12-19", "2024-12-19", "Cerrado", "", "", "N/A"], ["DCSM-H2412-005", "TIC 5", "ACU 01", "Correas de motor evaporador cortadas", "Clima", "Baja", "2024-12-26", "2024-12-26", "Cerrado", "", "", "N/A"], ["DCSM-H2412-006", "TIC 4", "ACU 01", "Falla motor condensador Cto 2", "Clima", "Baja", "2024-12-26", "2024-12-26", "Cerrado", "", "", "N/A"], ["DCSM-H2412-007", "Datos", "ACU 03", "Filtración de refrigerante por capilar presostato HP Cto 2.", "Clima", "Baja", "2024-12-30", "2024-12-31", "Cerrado", "", "", "N/A"], ["DCSM-H2501-001", "TIC 5", "ACU-203", "Falla motor condensador", "Clima", "Baja", "2025-01-01", "2025-01-02", "Cerrado", "", "", "N/A"], ["DCSM-H2501-002", "Principal 9", "ACU-012", "Correas de motor evaporador cortadas", "Clima", "Baja", "2025-01-03", "2025-01-03", "Cerrado", "", "", "N/A"], ["DCSM-H2501-003", "NOC 1", "ACU-500", "Falla en Termostato de control.", "Clima", "Baja", "2025-01-16", "2025-01-16", "Cerrado", "", "", "N/A"], ["DCSM-H2501-004", "TIC 5", "ACU-203", "Corto Cto Alimentador Motor condensador", "Clima", "Baja", "2025-01-18", "2025-01-18", "Cerrado", "", "", "N/A"], ["DCSM-H2501-005", "TIC 5", "ACU-203", "Fuera de servicio por fuga cto. 1", "Clima", "Baja", "2025-01-22", "2025-01-22", "Cerrado", "", "", "N/A"], ["DCSM-H2501-006", "TIC 5", "ACU-203", "Microfuga válvula de servicio de baja Cto 1.", "Clima", "Baja", "2025-01-25", "2025-01-25", "Cerrado", "", "", "N/A"], ["DCSM-H2501-007", "Azotea SM44", "CHILLER CHL-001", "Fuera de servicio por fuga cto. 1", "Clima", "Baja", "2025-01-29", "2025-02-12", "Cerrado", "008-LPU-01-25 V0", "008-LPU-01-25 V0", "Trabajo finalizado"], ["DCSM-H2501-008", "TIC 5", "ACU-203", "Falla en presostato de alta presión Cto 2.", "Clima", "Baja", "2025-01-31", "2025-01-31", "Cerrado", "", "", "N/A"], ["DCSM-H2502-001", "TIC 5", "ACU-203", "Falla motor evaporador N°2.", "Clima", "Baja", "2025-02-01", "2025-02-03", "Cerrado", "", "", "N/A"], ["DCSM-H2502-002", "TIC 5", "ACU-203", "Correas de motor evaporador cortadas", "Clima", "Baja", "2025-02-03", "2025-02-03", "Cerrado", "", "", "N/A"], ["DCSM-H2502-003", "Azotea SM44", "PMP (Stock)", "Fuga de agua por sello mecanico.", "Clima", "Baja", "2025-02-05", "2025-02-05", "Cerrado", "", "", "N/A"], ["DCSM-H2502-004", "Datos", "ACU-220", "Falla motor condensador Corto Circuito", "Clima", "Baja", "2025-02-09", "2025-02-10", "Cerrado", "", "", "N/A"], ["DCSM-H2502-005", "TIC 5", "ACU-202", "Correas de motor evaporador cortadas", "Clima", "Baja", "2025-02-17", "2025-02-17", "Cerrado", "", "", "N/A"], ["DCSM-H2502-006", "Energía -2 SM48", "GENERADOR 2 (PALMERO 2)", "Filtración de aceite por tapa de valvulas", "Energía", "Baja", "2025-02-25", "2025-07-24", "Cerrado", "N/A", "", "Trabajo finalizado"], ["DCSM-H2502-007", "Torre de enfriamiento", "CLT-001", "Válvula VT1-02 dañada.", "Clima", "Baja", "2025-02-28", "", "N/A", "N/A", "", "N/A"], ["DCSM-H2503-001", "Torre de enfriamiento", "CLT-001", "Desague con filtración.", "Clima", "Baja", "2025-03-03", "", "N/A", "N/A", "", "N/A"], ["DCSM-H2503-002", "Torre de enfriamiento", "CLT-001", "Sensor de H2O (TIT01B-IN2), con Lectura errónea.", "Clima", "Baja", "2025-03-03", "", "N/A", "N/A", "", "N/A"], ["DCSM-H2503-003", "Torre de enfriamiento", "PMP-006", "Filtro (Y) en mal estado.", "Clima", "Baja", "2025-03-03", "", "N/A", "N/A", "", "N/A"], ["DCSM-H2503-004", "TIC 2", "ACU-105", "Fuera de servicio por fuga cto. 1", "Clima", "Baja", "2025-03-04", "2025-03-07", "Cerrado", "", "", "N/A"], ["DCSM-H2503-005", "Torre de enfriamiento", "CLT-002", "Válvula VT2-13 dañada.", "Clima", "Baja", "2025-03-07", "", "N/A", "N/A", "", "N/A"], ["DCSM-H2503-006", "Torre de enfriamiento", "CLT-002", "Válvula VT2-14 dañada.", "Clima", "Baja", "2025-03-07", "", "N/A", "N/A", "", "N/A"], ["DCSM-H2503-007", "Torre de enfriamiento", "CLT-002", "Desague con filtración.", "Clima", "Baja", "2025-03-07", "2025-04-01", "Cerrado", "N/A", "", "N/A"], ["DCSM-H2503-008", "Torre de enfriamiento", "CLT-002", "Sensor de H2O (TIT02B-IN2), dañado.", "Clima", "Baja", "2025-03-07", "", "N/A", "N/A", "", "N/A"], ["DCSM-H2503-009", "Torre de enfriamiento", "PMP-008", "Filtro (Y) en mal estado.", "Clima", "Baja", "2025-03-07", "", "N/A", "N/A", "", "N/A"], ["DCSM-H2503-010", "TIC 6", "ACU-216", "Falla motor condensador (N°2)", "Clima", "Baja", "2025-03-08", "2025-03-08", "Cerrado", "", "", "N/A"], ["DCSM-H2503-011", "TIC 1", "ACU-100", "Falla motor condensador Cto 2", "Clima", "Baja", "2025-03-10", "2025-03-10", "Cerrado", "", "", "N/A"], ["DCSM-H2503-012", "TIC 4", "ACU-210", "Falla motor condensador", "Clima", "Baja", "2025-03-13", "2025-03-13", "Cerrado", "", "", "N/A"], ["DCSM-H2503-013", "TIC 6", "ACU-216", "Falla motor condensador (N°3)", "Clima", "Baja", "2025-03-17", "2025-03-17", "Cerrado", "", "", "N/A"], ["DCSM-H2503-014", "TIC 6", "ACU-216", "Fuera de servicio por fuga cto. 2", "Clima", "Baja", "2025-03-18", "", "N/A", "038-LPU-03-25 V0", "038-LPU-03-25 V0", "Rechazada"], ["DCSM-H2503-015", "Datos", "ACU-221", "Correas de motor evaporador dañadas.", "Clima", "Baja", "2025-03-19", "2025-03-19", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2503-016", "TIC 6", "ACU-218", "Falla motor condensador (N°3)", "Clima", "Baja", "2025-03-20", "2025-03-20", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2503-017", "Midrange", "ACU-400", "Falla motor condensador (N°2)", "Clima", "Baja", "2025-03-21", "2025-03-21", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2504-001", "Azotea SM44", "CLT-002", "Resistencia calefactor Comp 1A y 1B quemados.", "Clima", "Baja", "2025-04-01", "", "Abierto", "FX - 20199.25", "", "En cotización"], ["DCSM-H2504-002", "Energía -2 SM48", "GENERADOR 2 (PALMERO 2)", "Aspa ventilador trifasico fisurado", "Energía", "Media", "2025-04-04", "2025-04-09", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2504-003", "TIC 2", "ACU-104", "Selector Condensador Dañado.", "Clima", "Baja", "2025-04-11", "2025-04-11", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2504-004", "TIC 5", "ACU-203", "Correas de motor evaporador dañadas.", "Clima", "Baja", "2025-04-14", "2025-04-14", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2504-005", "CCI", "ACU-434", "Correas de motor evaporador dañadas.", "Clima", "Baja", "2025-04-14", "2025-04-14", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2504-006", "CCI", "ACU-435", "Correas de motor evaporador dañadas.", "Clima", "Baja", "2025-04-14", "2025-04-14", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2504-007", "TX", "ACU-301", "Falla motor condensador", "Clima", "Baja", "2025-04-18", "2025-04-18", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2504-008", "TIC 5", "ACU-203", "Falla motor condensador", "Clima", "Baja", "2025-04-27", "2025-04-28", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2504-009", "TIC 6", "ACU-217", "Falla motor condensador (N°2)", "Clima", "Baja", "2025-04-27", "2025-04-27", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2504-010", "NOC 2", "ACU-501", "Selector Condensador Dañado.", "Clima", "Baja", "2025-04-28", "2025-04-28", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2504-011", "TIC 6", "ACU-213", "Falla motor condensador", "Clima", "Baja", "2025-04-28", "2025-04-28", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2504-012", "Datos", "ACU-221", "Falla motor evaporador.", "Clima", "Baja", "2025-04-29", "2025-04-29", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2505-001", "Energía -2 SM48", "AHC-901", "Correas de motor evaporador dañadas.", "Clima", "Baja", "2025-05-02", "2025-05-02", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2505-002", "Azotea SM44", "CLT-001", "Resistencia calefactor Comp 1B quemada.", "Clima", "Baja", "2025-05-14", "", "Abierto", "FX - 20199/25", "", "En cotización"], ["DCSM-H2505-003", "Túnel de cables", "Túnel", "Túnel de cables con basura de trabajos realizadao", "SSGG", "Baja", "2025-05-18", "", "Abierto", "Se requiere realizar limpieza. Next 110-LPU-08-25 V0  Next 134-LPU-09-25 V0  Next 136-LPU-09-25 V0", "110-LPU-08-25 V0 / 134-LPU-09-25 V0 / 136-LPU-09-25 V0", "Rechazada"], ["DCSM-H2505-004", "Principal 9", "ACU-012", "Correas de motor evaporador dañadas.", "Clima", "Baja", "2025-05-19", "2025-05-19", "Cerrado", "", "", "N/A"], ["DCSM-H2505-005", "Datos", "ACU-219", "Falla motor condensador (N°1)", "Clima", "Baja", "2025-05-22", "2025-05-22", "Cerrado", "", "", "N/A"], ["DCSM-H2505-006", "Housing", "ACU-233", "Selector Condensador Dañado.", "Clima", "Baja", "2025-05-22", "2025-05-22", "Cerrado", "", "", "N/A"], ["DCSM-H2505-007", "Energía -1", "ACU-006", "Falla bomba de condensado.", "Clima", "Baja", "2025-05-22", "2025-05-23", "Cerrado", "", "", "N/A"], ["DCSM-H2505-008", "PSSBA", "ACU-227", "Falla motor condensador (N°2)", "Clima", "Baja", "2025-05-25", "", "Cerrado", "059-LPU-05-25 V0", "059-LPU-05-25 V0", "Trabajo finalizado"], ["DCSM-H2505-009", "Energía -1 TJ65", "GENERADOR 6 - DIPERK 2", "Manguera de enfriador de combustible (cambio por muestra)", "Energía", "Baja", "2025-05-27", "2025-07-21", "Cerrado", "", "7173", "Trabajo finalizado"], ["DCSM-H2505-010", "Energía -1 TJ65", "GENERADOR 6 - DIPERK 2", "Tapa Radiador Grupo Electrogeno -Diperk 2", "Energía", "Baja", "2025-05-27", "2025-07-21", "Cerrado", "", "7173", "Trabajo finalizado"], ["DCSM-H2505-011", "Energía -2 SM48", "GENERADOR 2 (PALMERO 2)", "Polución Radiador", "Energía", "Baja", "2025-05-27", "2025-07-24", "Cerrado", "", "7173", "Trabajo finalizado"], ["DCSM-H2505-012", "Energía -2 SM48", "GENERADOR 3 - PALMERO 3", "Correas aspa ventilador en mal estado", "Energía", "Baja", "2025-05-27", "2025-07-23", "Cerrado", "", "7173", "Trabajo finalizado"], ["DCSM-H2505-013", "Energía -2 SM48", "GENERADOR 3 - PALMERO 3", "Polución Radiador", "Energía", "Baja", "2025-05-27", "2025-07-23", "Cerrado", "", "7173", "Trabajo finalizado"], ["DCSM-H2505-014", "Energía -1 TJ65", "GENERADOR 1 - PALMERO 1", "Sistema de combustible (filtración en válvula de paso)", "Energía", "Baja", "2025-05-30", "2026-03-24", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2506-001", "TX", "ACU-301", "Falla motor condensador", "Clima", "Baja", "2025-06-02", "2025-06-02", "Cerrado", "", "", "N/A"], ["DCSM-H2506-002", "Telxius", "ACU-440", "Sin transductor de liquido", "Clima", "Baja", "2025-06-03", "", "N/A", "", "", "N/A"], ["DCSM-H2506-003", "TIC 1", "ACU-103", "Falla en contactor del compresor Cto 2", "Clima", "Baja", "2025-06-03", "2025-06-03", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2506-004", "CCI", "ACU-435", "Correas de motor evaporador dañadas.", "Clima", "Baja", "2025-06-04", "2025-06-04", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2506-005", "TIC 2", "ACU-105", "Correas de motor evaporador dañadas.", "Clima", "Baja", "2025-06-16", "2025-06-16", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2506-006", "TIC 5", "ACU-203", "Correas de motor evaporador dañadas.", "Clima", "Baja", "2025-06-23", "2025-06-23", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2506-007", "ENERGÍA -1", "ACU-002", "Fuera de servicio por fuga.", "Clima", "Baja", "2025-06-25", "", "Abierto", "", "", "N/A"], ["DCSM-H2506-008", "Sm48 y Atlas", "canaletas y bajadas de agua", "Canaletas y bajadas de agua en mal estado", "SSGG", "Alta", "2025-06-30", "", "Abierto", "Se requiere instalar nuevas, Next 115-LPU-08-25 V0", "115-LPU-08-25 V0", "Rechazada"], ["DCSM-H2506-009", "TIC 5", "ACU-200", "Correas de motor evaporador dañadas.", "Clima", "Baja", "2025-06-30", "2025-06-30", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2507-001", "Energía -2 SM48", "AHC-901", "Correas de motor evaporador dañadas.", "Clima", "Baja", "2025-07-04", "2025-07-04", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2507-002", "TIC 5", "ACU-203", "Fuera de servicio por fuga Cto 1.", "Clima", "Baja", "2025-07-06", "2025-07-09", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2507-003", "TIC 5", "ACU-202", "Motor condensador con ruido mecanico.", "Clima", "Baja", "2025-07-07", "2025-07-07", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2507-004", "Principal 9", "ACU-013", "Termostato de control averiado.", "Clima", "Baja", "2025-07-11", "2025-07-11", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2507-005", "Principal 9", "ACU-013", "Correas de motor evaporador dañadas.", "Clima", "Baja", "2025-07-14", "2025-07-14", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2507-006", "Principal 9", "ACU-012", "Fuera de servicio por fuga Cto 1.", "Clima", "Baja", "2025-07-14", "2025-10-23", "Cerrado", "PD", "", "Trabajo finalizado"], ["DCSM-H2507-007", "TIC 5", "ACU-220", "Correas de motor evaporador dañadas.", "Clima", "Baja", "2025-07-19", "2025-07-19", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2507-008", "Datos", "ACU-219", "Correas de motor evaporador dañadas.", "Clima", "Baja", "2025-07-21", "2025-07-21", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2507-009", "Prepago", "ACU-232", "Fuera de servicio por fuga Cto 2.", "Clima", "Baja", "2025-07-25", "2025-07-25", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2507-010", "CCI", "ACU-435", "Correas de motor evaporador dañadas.", "Clima", "Baja", "2025-07-30", "2025-07-30", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2508-001", "Tucapel Jimenez", "GE Diperk 2", "Caja Proat reemplazar, filtros de aire en mal estado.", "Energía", "Baja", "2025-08-02", "2026-03-16", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2508-002", "DATOS", "ACU-219", "Falla motor condensador", "Clima", "Baja", "2025-08-06", "2025-08-06", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2508-003", "TIC 5", "ACU-203", "Falla motor condensador", "Clima", "Baja", "2025-08-10", "2025-08-10", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2508-004", "Energía -2 SM48", "AHC-901", "Correas de motor evaporador dañadas.", "Clima", "Baja", "2025-08-14", "2025-08-14", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2508-005", "ENERGÍA -1", "ACU-007", "Falla en Bomba de condensado", "Clima", "Baja", "2025-08-15", "2025-08-15", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2508-006", "Midrange", "ACU-400", "Falla motor condensador", "Clima", "Baja", "2025-08-20", "2025-08-20", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2509-001", "Principal 9", "ACU-015", "Falla motor condensador", "Clima", "Baja", "2025-09-01", "2025-09-01", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2509-002", "Principal 9", "ACU-012", "Correas de motor evaporador dañadas.", "Clima", "Baja", "2025-09-01", "2025-09-01", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2509-003", "Tucapel  Jimenez", "Linea MT", "Linea MT sin fijar", "Energía", "Media", "2025-09-02", "", "Abierto", "", "", "Aprobada - En ejecución"], ["DCSM-H2509-004", "TIC 5", "ACU-202", "Correas de motor evaporador dañadas.", "Clima", "Baja", "2025-09-15", "2025-09-15", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2509-005", "Principal 9", "ACU-013", "Correas de motor evaporador dañadas.", "Clima", "Baja", "2025-09-15", "2025-09-15", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2509-006", "Energia -2", "AHC-901", "Correas de motor evaporador dañadas.", "Clima", "Baja", "2025-09-15", "2025-09-15", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2509-007", "Azotea SM44", "PMP-002", "Manómetro de presión de agua averiado.", "Clima", "Baja", "2025-09-15", "2025-09-15", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2509-008", "Azotea SM44", "PMP-004", "Manómetro de presión de agua averiado.", "Clima", "Baja", "2025-09-15", "2025-09-15", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2509-009", "TIC 4", "TDC 1.13", "Rele temporizador dañado", "Clima", "Baja", "2025-09-23", "2025-09-23", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2510-001", "SM50 azotea", "Sistema de agua apotable", "Válvula de salida de 3\" de estanque de azotea, mala, no corta", "SSGG", "Alta", "2025-10-09", "", "Abierto", "Se requiere cambio de válvula de 3\". Next 157-LPU-10-25 V0", "157-LPU-10-25 V0", "Rechazada"], ["DCSM-H2510-002", "SM50 azotea", "Sistema de agua apotable", "Válvula de salida de 31 1/2\" hacia SERVEL, mala, no corta", "SSGG", "Alta", "2025-10-09", "", "Abierto", "Se requiere cambio de válvula de 1 1/2\" Next 174-LPU-10-25 V0", "174-LPU-10-25 V0", "Rechazada"], ["DCSM-H2510-003", "CrossConnect", "AHC-223", "Falla tarjeta de control Circuito 1.", "Clima", "Baja", "2025-10-10", "2025-10-10", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2510-004", "TIC 5", "ACU-202", "Fuera de servicio por fuga, Cto 1.", "Clima", "Baja", "2025-10-14", "2025-10-17", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2510-005", "ENERGÍA -1", "ACU-004", "Falla motor condensador N°3", "Clima", "Baja", "2025-10-14", "2025-10-14", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2510-006", "TIC 4", "ACU-205", "Falla motor condensador", "Clima", "Baja", "2025-10-16", "2025-10-16", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2510-007", "Energia -2", "AHC-902", "Automatico de compresor en falla.", "Clima", "Baja", "2025-10-20", "2025-10-20", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2510-008", "TIC 5", "ACU-200", "Correas de motor evaporador dañadas.", "Clima", "Baja", "2025-10-21", "2025-10-21", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2510-009", "NOC 2", "ACU-502", "Falla motor condensador", "Clima", "Baja", "2025-10-23", "2025-10-23", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2510-010", "NOC 2", "ACU-502", "Falla control (KP5) unidad condensadora.", "Clima", "Baja", "2025-10-23", "2025-10-23", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2510-011", "Principal 9", "ACU-012", "Fuera de servicio por falla en compresor (mecánica)  Cto 1.", "Clima", "Baja", "2025-10-23", "", "Abierto", "", "", "N/A"], ["DCSM-H2510-012", "Energia -2", "AHC-901", "Falla guardamotor motores evaporadores", "Clima", "Baja", "2025-10-24", "2025-10-24", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2510-013", "Energia -2", "AHC-901", "Correas de motor evaporador dañadas.", "Clima", "Baja", "2025-10-24", "2025-10-24", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2511-001", "Midrange", "ACU-400", "Falla motor condensador", "Clima", "Baja", "2025-11-03", "2025-11-03", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2511-002", "RESO", "IRW-427", "Fuente de poder A en falla", "Clima", "Baja", "2025-11-03", "", "Abierto", "N/A", "", "N/A"], ["DCSM-H2511-003", "TIC 4", "ACU-208", "EEVV Con problemas de regulación, Cto 2.", "Clima", "Baja", "2025-11-04", "", "Abierto", "", "", "N/A"], ["DCSM-H2511-004", "TIC 4", "ACU-208", "Falla Relé temporizador TDC 1,13", "Clima", "Baja", "2025-11-05", "2025-11-05", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2511-005", "Principal 9", "ACU-013", "Falla motor condensador", "Clima", "Baja", "2025-11-13", "2025-11-13", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2511-006", "TIC 2", "ACU-105", "Falla motor condensador", "Clima", "Baja", "2025-11-14", "2025-11-14", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2512-001", "TIC 1", "ACU-102", "Falla motor condensador", "Clima", "Baja", "2025-12-03", "2025-12-03", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2512-002", "TIC 2", "ACU-105", "Correas de motor evaporador dañadas.", "Clima", "Baja", "2025-12-22", "2025-12-22", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2601-001", "TIC 2", "ACU-107", "Fuera de servicio por compresor en falla (mecanica) cto. 2", "Clima", "Baja", "2026-01-06", "", "Abierto", "", "", "N/A"], ["DCSM-H2601-002", "TIC 2", "ACU-107", "Falla KP5 unidad exterior Cto 2", "Clima", "Baja", "2026-01-06", "2026-01-06", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2601-003", "TIC 4", "ACU-209", "Falla Selector unidad exterior cto 2", "Clima", "Baja", "2026-01-09", "2026-01-09", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2601-004", "TIC 6", "ACU-213", "Falla Selector unidad exterior", "Clima", "Baja", "2026-01-16", "2026-01-16", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2602-001", "SM42", "Techumbre/canaletas/bajadas de agua", "Filtración de techumbre", "SSGG", "Alta", "2026-02-26", "", "Abierto", "Falta mantención y reparación", "", "En cotización"], ["DCSM-H2603-001", "Principal 9", "ACU-015", "Correas de motor evaporador dañadas.", "Clima", "Baja", "2026-03-03", "2026-03-03", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2603-002", "TIC 4", "ACU-207", "Cto 2 fuera de servicio por fuga", "Clima", "Baja", "2026-03-12", "2026-06-04", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2603-003", "CPD", "ACU-411", "Cto 2 fuera de servicio por falla en Válvula de expansión.", "Clima", "Baja", "2026-03-24", "2026-04-09", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2603-004", "Principal 9", "ACU-013", "Correas de motor evaporador dañadas.", "Clima", "Baja", "2026-03-27", "2026-03-27", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2604-001", "Datos", "ACU-219", "Falla acometida Condensadora equipo ACU-219", "Clima", "Baja", "2026-04-06", "2026-04-06", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2604-002", "CPD", "ACU-410", "Cto 1 fuera de servicio por fuga", "Clima", "Baja", "2026-04-13", "2026-04-17", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2604-003", "Telxius", "ACU-442", "Falla compresor", "Clima", "Baja", "2026-04-13", "", "Abierto", "correctivo en programación.", "", "En cotización"], ["DCSM-H2604-004", "NOC", "ACU-502", "Falla motor condensador", "Clima", "Baja", "2026-04-21", "2026-04-21", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2604-005", "Datos", "ACU-219", "Falla motor condensador", "Clima", "Baja", "2026-04-26", "2026-04-26", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2604-006", "Móvil", "ACU-436", "Falla contactor compresor Cto 1", "Clima", "Baja", "2026-04-26", "2026-04-26", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2604-007", "CCI", "ACU-434", "Falla contactor compresor Cto 2", "Clima", "Baja", "2026-04-30", "2026-04-30", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2605-001", "SM44", "Techumbre/canaletas/bajadas de agua", "Filtración de techumbre", "SSGG", "Alta", "2026-05-01", "", "Abierto", "Falta mantención y reparación", "", "En cotización"], ["DCSM-H2605-002", "CPD", "ACU-410", "Compresor bajo rendimiento (Delta T 1,5°C).", "Clima", "Baja", "2026-05-05", "", "Abierto", "Next 056-LPU-04-26 V0", "056-LPU-04-26 V0", "Pendiente aprobación"], ["DCSM-H2605-003", "Azotea SM44", "CHL-001", "Resistencia calefactor Comp 2A&2B quemada.", "Clima", "Baja", "2026-05-13", "", "Abierto", "FX - 20199.25", "", "En cotización"], ["DCSM-H2605-004", "Principal 9", "ACU-014", "Cto 1 fuera de servicio por fuga", "Clima", "Baja", "2026-05-22", "", "Abierto", "", "", "En cotización"], ["DCSM-H2605-005", "Energia -1", "ACU-006", "Falla termostato - Control Unidad Interior.", "Clima", "Baja", "2026-05-27", "2026-05-28", "Cerrado", "", "", "Trabajo finalizado"], ["DCSM-H2606-001", "Sitio", "Perímetro", "Patio tucapel vulnerable hacia plaza", "SSGG", "Alta", "2026-06-01", "", "Abierto", "Se requiere colocar conc ertina o cierre eléctrico.", "", "En cotización"], ["DCSM-H2606-002", "SM48 sala SDH", "Acceso a salas", "Sala SDH sistema de acceso fuera de funcionamiento", "SSGG", "Baja", "2026-06-01", "", "Abierto", "Se revisará con tec. multipropósito para activarlo en Julio 2026", "", "En cotización"], ["DCSM-H2606-003", "SM48 sala PSSBA", "Acceso a salas", "Sala PSSBA sistema de acceso fuera de funcionamiento", "SSGG", "Baja", "2026-06-01", "", "Abierto", "Se revisará con tec. multipropósito para activarlo en Julio 2027", "", "En cotización"], ["DCSM-H2606-004", "SM48 sala Prepago", "Acceso a salas", "Sala Prepago sistema de acceso fuera de funcionamiento", "SSGG", "Baja", "2026-06-01", "", "Abierto", "Se revisará con tec. multipropósito para activarlo en Julio 2028", "", "En cotización"], ["DCSM-H2606-005", "SM48 sala TX", "Acceso a salas", "Sala TX  sistema de acceso fuera de funcionamiento", "SSGG", "Baja", "2026-06-01", "", "Abierto", "Se revisará con tec. multipropósito para activarlo en Julio 2029", "", "En cotización"], ["DCSM-H2606-006", "SM48 sala Nokia", "Acceso a salas", "Sala NOKIA sistema de acceso fuera de funcionamiento", "SSGG", "Baja", "2026-06-01", "", "Abierto", "Se revisará con tec. multipropósito para activarlo en Julio 2030", "", "En cotización"], ["DCSM-H2606-007", "Sitio", "Extintores", "133 extintores con PH vencida", "SSGG", "Alta", "2026-06-01", "", "Abierto", "Comprar 133 extin./Con LPU actualizada Next 067-LPU-05-26 V0", "067-LPU-05-26 V0", "Pendiente aprobación"], ["DCSM-H2606-008", "Principal 9", "TDU 2.13", "Caída de tensión a salida de transformador de aislación (207V F-N)", "Energía", "Baja", "2026-06-02", "", "Abierto", "", "", "En cotización"], ["DCSM-H2606-009", "TIC 5", "ACU-200", "Falla rodamiento motor evaporador.", "Clima", "Baja", "2026-06-10", "", "Abierto", "Pendiente", "", "En cotización"]]};
+</script>
+<script>
+"use strict";
+
+/* ============================================================
+   CONFIGURACIÓN DE SUPABASE
+   ------------------------------------------------------------
+   1. Entra a tu proyecto de Supabase (el mismo que usa tu
+      dashboard de Mantenimiento) → Settings → API.
+   2. Copia "Project URL" y pégalo en SUPABASE_URL.
+   3. Copia la clave "anon public" y pégala en SUPABASE_ANON_KEY.
+   4. Crea la tabla ejecutando el archivo schema.sql en el
+      SQL Editor de Supabase (incluido junto a este dashboard).
+   ============================================================ */
+const SUPABASE_URL = "PEGA_AQUI_TU_PROJECT_URL";
+const SUPABASE_ANON_KEY = "PEGA_AQUI_TU_ANON_KEY";
+const SUPABASE_TABLE = "hallazgos_dcsm";
+const SUPABASE_ROW_ID = "current"; // siempre se sobrescribe la misma fila = "versión vigente"
+
+let supabaseClient = null;
+let supabaseReady = false;
+try{
+  if(typeof supabase!=='undefined' && SUPABASE_URL.startsWith('http')){
+    supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    supabaseReady = true;
+  }
+}catch(e){ console.warn("Supabase no configurado:", e); }
+
+async function fetchLatestFromSupabase(){
+  if(!supabaseReady) return null;
+  try{
+    const {data,error} = await supabaseClient.from(SUPABASE_TABLE).select('*').eq('id',SUPABASE_ROW_ID).maybeSingle();
+    if(error){ console.warn("Supabase fetch error:", error.message); return null; }
+    if(!data || !data.rows) return null;
+    return data;
+  }catch(e){ console.warn("Supabase fetch failed:", e); return null; }
+}
+async function saveLatestToSupabase(headers, colmap, rows, filename){
+  if(!supabaseReady){ alert("Supabase no está configurado en este dashboard todavía. Avisa a quien lo armó para conectar las credenciales."); return false; }
+  try{
+    const {error} = await supabaseClient.from(SUPABASE_TABLE).upsert({
+      id: SUPABASE_ROW_ID, headers, colmap, rows, filename,
+      updated_at: new Date().toISOString()
+    });
+    if(error){ alert("No se pudo guardar en Supabase: "+error.message); return false; }
+    return true;
+  }catch(e){ alert("Error de conexión con Supabase: "+e.message); return false; }
+}
+
+try{ if(typeof ChartDataLabels!=='undefined'){ Chart.register(ChartDataLabels); Chart.defaults.set('plugins.datalabels',{display:false}); } }catch(e){}
+
+const FIELDS = {
+  id:          {label:"N° / ID",            req:false, hints:["numero","número","n°","nº","nro","num","código","codigo","folio","item","correlativo"]},
+  sala:        {label:"Sala / ubicación",   req:false, hints:["sala","zona","ubicación","ubicacion","recinto","piso"]},
+  equipo:      {label:"Equipo",             req:false, hints:["equipo","activo","componente"]},
+  descripcion: {label:"Título / descripción",req:false,hints:["titulo","título","hallazgo","descripción","descripcion","problema","detalle","no conformidad","desviación","desviacion","glosa"]},
+  area:        {label:"Área",               req:true,  hints:["área","area","sistema","disciplina"]},
+  prioridad:   {label:"Prioridad",          req:false, hints:["prioridad","criticidad","severidad"]},
+  fecha:       {label:"Fecha detección",    req:false, hints:["inicio","fecha de detección","fecha detección","fecha deteccion","fecha","detección","deteccion","registro","ingreso","apertura"]},
+  fechafin:    {label:"Fecha finalización", req:false, hints:["finalización","finalizacion","fin","cierre","término","termino"]},
+  estado:      {label:"Estado",             req:true,  hints:["estado del hallazgo","estado hallazgo","estado","status","condición","condicion"]},
+  gestion:     {label:"Estado de gestión / cotización",req:false,hints:["estado cotización","estado cotizacion","estado de gestión","estado gestion","gestión","gestion","cotización","cotizacion","avance","aprobación","seguimiento"]},
+  observaciones:{label:"Observaciones",     req:false, hints:["observación","observacion","observ","comentario","nota","acción","accion"]},
+  cotizacion:  {label:"Cotización (LPU)",   req:false, hints:["cotización","cotizacion","lpu","n° cotización","numero cotizacion"]}
+};
+
+const norm = s => (s==null?"":String(s)).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/\s+/g," ").trim();
+const capitalize=s=>{s=String(s).trim();return s.charAt(0).toUpperCase()+s.slice(1);};
+
+function autoMap(headers){
+  const map={}, used=new Set();
+  for(const key of Object.keys(FIELDS)){
+    let best=null,bestScore=0;
+    headers.forEach((h,i)=>{
+      if(used.has(i))return;
+      const nh=norm(h); let score=0;
+      for(const hint of FIELDS[key].hints){
+        const nhint=norm(hint);
+        if(nh===nhint) score=Math.max(score,100+nhint.length);
+        else if(nh.startsWith(nhint)) score=Math.max(score,60+nhint.length);
+        else if(nh.includes(nhint)) score=Math.max(score,40+nhint.length);
+      }
+      if(score>bestScore){bestScore=score;best=i;}
+    });
+    if(best!=null&&bestScore>0){map[key]=best;used.add(best);} else map[key]=null;
+  }
+  return map;
+}
+
+function classEstado(v){
+  const n=norm(v);
+  if(!n) return "N/A";
+  if(/(^|[^a-z])(n\/?a|no aplica|no_aplica)([^a-z]|$)/.test(n)||n==="na") return "N/A";
+  if(n.includes("abiert")||n.includes("vigente")||n.includes("activo")||(n.includes("pendiente")&&!n.includes("aprob"))) return "Abierto";
+  if(n.includes("cerrad")||n.includes("resuelto")||n.includes("finalizado")||n.includes("completado")) return "Cerrado";
+  return v?capitalize(v):"N/A";
+}
+function classPrioridad(v){
+  const n=norm(v);
+  if(n.includes("alta")||n.includes("critic")||n.includes("urgente")) return "Alta";
+  if(n.includes("media")||n.includes("medio")||n.includes("moderad")) return "Media";
+  if(n.includes("baja")||n.includes("bajo")||n.includes("menor")) return "Baja";
+  return v?capitalize(v):"Sin definir";
+}
+function classResponsable(gestion, estado){
+  const n=norm(gestion);
+  if(!n){ // celda realmente vacía (no debería ocurrir si el Excel está completo)
+    return estado==="Cerrado" ? {side:"ICETEL", g:"Trabajo finalizado"} : {side:"ICETEL", g:"Por gestionar"};
+  }
+  if(n==="na"||n==="n/a"||n.includes("no aplica")) return {side:"N/A", g:"No aplica"};
+  if(n.includes("pendiente")&&n.includes("aprob")) return {side:"NextStream", g:"Pendiente aprobación"};
+  if(n.includes("rechaz")) return {side:"NextStream", g:"Rechazada"};
+  if(n.includes("cotiz")) return {side:"ICETEL", g:"En cotización"};
+  if((n.includes("aprobad"))&&(n.includes("ejecu"))) return {side:"ICETEL", g:"Aprobada · En ejecución"};
+  if(n.includes("ejecu")) return {side:"ICETEL", g:"En ejecución"};
+  if(n.includes("finaliz")) return {side:"ICETEL", g:"Trabajo finalizado"};
+  if(n.includes("aprobad")) return {side:"ICETEL", g:"Aprobada"};
+  if(n.includes("pendiente")) return {side:"NextStream", g:"Pendiente aprobación"};
+  return {side:"ICETEL", g: capitalize(gestion)};
+}
+function parseDate(v){
+  if(v==null||v==="") return null;
+  if(v instanceof Date && !isNaN(v)) return v;
+  if(typeof v==="number"){const d=new Date(Math.round((v-25569)*86400*1000));return isNaN(d)?null:d;}
+  const s=String(v).trim();
+  let m=s.match(/^(\d{4})[\/\-.](\d{1,2})[\/\-.](\d{1,2})/);
+  if(m){const dt=new Date(+m[1],+m[2]-1,+m[3]);return isNaN(dt)?null:dt;}
+  m=s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})/);
+  if(m){let[,d,mo,y]=m;y=+y<100?2000+ +y:+y;const dt=new Date(y,mo-1,+d);return isNaN(dt)?null:dt;}
+  const dt=new Date(s); return isNaN(dt)?null:dt;
+}
+
+let RAW=[], HEADERS=[], COLMAP={}, charts={}, timeGran="month";
+const filters={area:"",estado:"",prioridad:"",pelota:"",ano:"",mes:"",search:"",chartArea:"",chartEstado:"",chartPrioridad:""};
+const getCss=v=>getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const C={Abierto:getCss('--abierto'),Cerrado:getCss('--cerrado'),"N/A":getCss('--na'),
+  Alta:getCss('--alta'),Media:getCss('--media'),Baja:getCss('--baja'),
+  ICETEL:getCss('--icetel'),NextStream:getCss('--nextstream'),"N/A":getCss('--na'),
+  accent:getCss('--accent'),grid:'rgba(21,32,51,.08)',txt:getCss('--txt-mut'),ink:getCss('--ink')};
+const sideClass=s=>s==="ICETEL"?"ic":s==="NextStream"?"nx":"sa";
+
+function buildRecords(rows){
+  return rows.map((r,i)=>{
+    const get=key=>{const idx=COLMAP[key];return idx==null?"":r[idx];};
+    const estado=classEstado(get('estado'));
+    const pel=classResponsable(get('gestion'), estado);
+    const all={}; HEADERS.forEach((h,ci)=>{all[h]=r[ci];});
+    return {
+      _i:i, id:get('id')||(i+1),
+      sala:get('sala')||"", equipo:get('equipo')||"",
+      area:(String(get('area')||"Sin área").trim())||"Sin área",
+      descripcion:get('descripcion')||"",
+      estado:estado, prioridad:classPrioridad(get('prioridad')),
+      gestion:get('gestion')?String(get('gestion')).trim():"",
+      gestionLabel:pel.g, pelota:pel.side,
+      cotizacion:get('cotizacion')?String(get('cotizacion')).trim():"",
+      fecha:parseDate(get('fecha')), fechafin:parseDate(get('fechafin')),
+      observaciones:get('observaciones')||"", _all:all
+    };
+  });
+}
+
+function applyFilters(){
+  const s=norm(filters.search);
+  return RAW.filter(r=>{
+    if(filters.area&&r.area!==filters.area)return false;
+    if(filters.chartArea&&r.area!==filters.chartArea)return false;
+    if(filters.estado&&r.estado!==filters.estado)return false;
+    if(filters.chartEstado&&r.estado!==filters.chartEstado)return false;
+    if(filters.prioridad&&r.prioridad!==filters.prioridad)return false;
+    if(filters.chartPrioridad&&r.prioridad!==filters.chartPrioridad)return false;
+    if(filters.pelota&&r.pelota!==filters.pelota)return false;
+    if(filters.ano){if(!r.fecha||String(r.fecha.getFullYear())!==filters.ano)return false;}
+    if(filters.mes){if(!r.fecha||String(r.fecha.getMonth()+1).padStart(2,'0')!==filters.mes)return false;}
+    if(s){const blob=norm([r.id,r.sala,r.equipo,r.area,r.descripcion,r.observaciones,r.gestion,r.estado,r.prioridad].join(" "));if(!blob.includes(s))return false;}
+    return true;
+  });
+}
+
+function renderAll(){
+  const data=applyFilters();
+  renderKPIs(data);renderArea(data);renderEstado(data);renderPrioridad(data);renderPelota(data);renderTime(data);renderTable(data);renderChips();
+}
+function countBy(data,fn){const m={};data.forEach(r=>{const k=fn(r);m[k]=(m[k]||0)+1;});return m;}
+
+function renderKPIs(data){
+  const total=data.length;
+  const ab=data.filter(r=>r.estado==="Abierto").length;
+  const ce=data.filter(r=>r.estado==="Cerrado").length;
+  const na=data.filter(r=>r.estado==="N/A").length;
+  const ic=data.filter(r=>r.pelota==="ICETEL").length;
+  const nx=data.filter(r=>r.pelota==="NextStream").length;
+  const pctCe=total?Math.round(ce/total*100):0;
+  const items=[
+    {lab:"Total hallazgos",val:total,sub:"en la vista actual",cls:""},
+    {lab:"Abiertos",val:ab,sub:total?Math.round(ab/total*100)+"% del total":"",cls:"k-ab"},
+    {lab:"Cerrados",val:ce,sub:pctCe+"% de cierre",cls:"k-ce"},
+    {lab:"N/A",val:na,sub:"sin estado / no aplica",cls:"k-na"},
+    {lab:"Responsable · ICETEL",val:ic,sub:"cotización / ejecución / cierre",cls:"k-ic"},
+    {lab:"Responsable · NextStream",val:nx,sub:"aprobación / rechazo",cls:"k-nx"}
+  ];
+  document.getElementById('kpis').innerHTML=items.map(k=>`<div class="kpi ${k.cls} fade"><div class="lab">${k.lab}</div><div class="val">${k.val}</div><div class="sub">${k.sub}</div></div>`).join("");
+}
+const baseOpts=(extra={})=>Object.assign({responsive:true,maintainAspectRatio:false,
+  plugins:{legend:{labels:{color:C.txt,font:{family:'Inter',size:12},usePointStyle:true,pointStyleWidth:9}},
+    tooltip:{backgroundColor:'#152033',borderColor:'rgba(255,255,255,.1)',borderWidth:1,titleColor:'#fff',bodyColor:'#E8EDF5',padding:10,cornerRadius:8}}},extra);
+function destroyChart(k){if(charts[k]){charts[k].destroy();delete charts[k];}}
+
+function renderArea(data){
+  destroyChart('area');
+  const areas=[...new Set(data.map(r=>r.area))].sort();
+  const states=["Abierto","Cerrado","N/A"];
+  const ds=states.map(st=>({label:st,backgroundColor:C[st],borderRadius:4,maxBarThickness:46,
+    data:areas.map(a=>data.filter(r=>r.area===a&&r.estado===st).length)}));
+  charts.area=new Chart(document.getElementById('chArea'),{type:'bar',data:{labels:areas,datasets:ds},
+    options:baseOpts({indexAxis:'y',scales:{x:{stacked:true,grid:{color:C.grid},ticks:{color:C.txt,precision:0}},y:{stacked:true,grid:{display:false},ticks:{color:C.ink,font:{weight:'600'}}}},
+      plugins:{legend:baseOpts().plugins.legend,tooltip:baseOpts().plugins.tooltip,
+        datalabels:{display:ctx=>ctx.dataset.data[ctx.dataIndex]>0,color:'#fff',font:{family:'IBM Plex Mono',weight:'600',size:11},formatter:v=>v>0?v:''}},
+      onClick:(e,el)=>{if(el.length){const a=areas[el[0].index];filters.chartArea=filters.chartArea===a?"":a;renderAll();}}})});
+}
+function renderEstado(data){
+  destroyChart('estado');
+  const m=countBy(data,r=>r.estado);
+  const labels=["Abierto","Cerrado","N/A"].filter(l=>m[l]);
+  charts.estado=new Chart(document.getElementById('chEstado'),{type:'doughnut',
+    data:{labels,datasets:[{data:labels.map(l=>m[l]),backgroundColor:labels.map(l=>C[l]),borderColor:'#fff',borderWidth:3,hoverOffset:8}]},
+    options:baseOpts({cutout:'60%',
+      plugins:{legend:{position:'bottom',labels:{color:C.txt,font:{family:'Inter',size:12},usePointStyle:true,pointStyleWidth:9,padding:14}},tooltip:baseOpts().plugins.tooltip,
+        datalabels:{display:true,color:'#fff',font:{family:'IBM Plex Mono',weight:'600',size:14},formatter:v=>v>0?v:''}},
+      onClick:(e,el)=>{if(el.length){const l=labels[el[0].index];filters.chartEstado=filters.chartEstado===l?"":l;renderAll();}}})});
+}
+function renderPrioridad(data){
+  destroyChart('prio');
+  const order=["Alta","Media","Baja"];
+  const m=countBy(data,r=>r.prioridad);
+  const labels=order.filter(l=>m[l]).concat(Object.keys(m).filter(k=>!order.includes(k)));
+  charts.prio=new Chart(document.getElementById('chPrioridad'),{type:'bar',
+    data:{labels,datasets:[{data:labels.map(l=>m[l]),backgroundColor:labels.map(l=>C[l]||C["N/A"]),borderRadius:6,maxBarThickness:64}]},
+    options:baseOpts({plugins:{legend:{display:false},tooltip:baseOpts().plugins.tooltip,
+      datalabels:{display:true,anchor:'end',align:'end',offset:2,color:C.ink,font:{family:'IBM Plex Mono',weight:'600',size:12},formatter:v=>v>0?v:''}},
+      scales:{x:{grid:{display:false},ticks:{color:C.ink,font:{weight:'600'}}},y:{grid:{color:C.grid},ticks:{color:C.txt,precision:0}},},
+      layout:{padding:{top:16}},
+      onClick:(e,el)=>{if(el.length){const l=labels[el[0].index];filters.chartPrioridad=filters.chartPrioridad===l?"":l;renderAll();}}})});
+}
+function renderPelota(data){
+  const ic=data.filter(r=>r.pelota==="ICETEL").length;
+  const nx=data.filter(r=>r.pelota==="NextStream").length;
+  const na=data.filter(r=>r.pelota==="N/A").length;
+  const total=data.length||1;
+  document.getElementById('icBig').textContent=ic;
+  document.getElementById('nxBig').textContent=nx;
+  document.getElementById('icPct').textContent=Math.round(ic/total*100)+"% del total"+(na?` · ${na} no aplica`:"");
+  document.getElementById('nxPct').textContent=Math.round(nx/total*100)+"% del total";
+  const order=["En cotización","Aprobada · En ejecución","En ejecución","Pendiente aprobación","Rechazada","Trabajo finalizado","No aplica","Por gestionar"];
+  const gm={};
+  data.forEach(r=>{const k=r.gestionLabel||"Sin estado de gestión";if(!gm[k])gm[k]={n:0,side:r.pelota};gm[k].n++;});
+  const rows=Object.entries(gm).sort((a,b)=>{const ia=order.indexOf(a[0]),ib=order.indexOf(b[0]);return (ia<0?99:ia)-(ib<0?99:ib);});
+  document.getElementById('gestrows').innerHTML=rows.map(([g,o])=>
+    `<div class="gestrow" data-side="${o.side}"><div class="gl"><span class="tag ${sideClass(o.side)}">${o.side}</span><span>${g}</span></div><span class="gn">${o.n}</span></div>`).join("")
+    || `<div class="hint">Sin datos de gestión.</div>`;
+  document.querySelectorAll('#gestrows .gestrow').forEach(el=>el.onclick=()=>{const s=el.dataset.side;filters.pelota=filters.pelota===s?"":s;document.getElementById('fPelota').value=filters.pelota;renderAll();});
+}
+const MES=["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"];
+function fmtLabel(l){if(!l)return"";if(/^\d{4}$/.test(l))return l;const[y,m]=l.split("-");return `${MES[+m-1]} ${y}`;}
+function renderTime(data){
+  destroyChart('time');
+  const open=data.filter(r=>r.estado==="Abierto"&&r.fecha);
+  const m={};
+  open.forEach(r=>{const d=r.fecha;const key=timeGran==="year"?String(d.getFullYear()):`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;m[key]=(m[key]||0)+1;});
+  const labels=Object.keys(m).sort();
+  const noDate=data.filter(r=>r.estado==="Abierto"&&!r.fecha).length;
+  charts.time=new Chart(document.getElementById('chTime'),{type:'bar',
+    data:{labels,datasets:[{label:'Abiertos detectados',data:labels.map(l=>m[l]),backgroundColor:C.Abierto+'cc',borderRadius:5,maxBarThickness:46}]},
+    options:baseOpts({plugins:{legend:{display:false},tooltip:{...baseOpts().plugins.tooltip,callbacks:{title:it=>fmtLabel(it[0].label)}},
+      datalabels:{display:true,anchor:'end',align:'end',offset:2,color:C.ink,font:{family:'IBM Plex Mono',weight:'600',size:11},formatter:v=>v>0?v:''}},
+      layout:{padding:{top:14}},
+      scales:{x:{grid:{display:false},ticks:{color:C.txt,callback:(v)=>fmtLabel(labels[v])}},y:{grid:{color:C.grid},ticks:{color:C.txt,precision:0}}}})});
+  const card=document.getElementById('chTime').closest('.card');
+  let note=card.querySelector('.timenote'); if(!note){note=document.createElement('p');note.className='hint timenote';card.appendChild(note);}
+  note.innerHTML=labels.length?(noDate?`${noDate} hallazgo(s) abierto(s) sin fecha de detección no se muestran.`:""):"No hay hallazgos abiertos con fecha de detección en la vista actual.";
+}
+
+let sortKey="estado",sortDir=1;
+const COLS=[{k:"id",label:"N°"},{k:"area",label:"Área"},{k:"descripcion",label:"Título"},{k:"estado",label:"Estado"},{k:"prioridad",label:"Prioridad"},{k:"pelota",label:"Responsable"},{k:"gestionLabel",label:"Gestión"},{k:"cotizacion",label:"Cotización"},{k:"fecha",label:"Detección"}];
+function renderTable(data){
+  document.getElementById('thead').innerHTML=COLS.map(c=>`<th data-k="${c.k}">${c.label} <span class="ar">${sortKey===c.k?(sortDir>0?'▲':'▼'):''}</span></th>`).join("");
+  document.querySelectorAll('#thead th').forEach(th=>th.onclick=()=>{const k=th.dataset.k;if(sortKey===k)sortDir*=-1;else{sortKey=k;sortDir=1;}renderTable(applyFilters());});
+  const sorted=[...data].sort((a,b)=>{let x=a[sortKey],y=b[sortKey];if(sortKey==="fecha"){x=x?x.getTime():0;y=y?y.getTime():0;}else{x=norm(x);y=norm(y);}return x<y?-sortDir:x>y?sortDir:0;});
+  document.getElementById('tcount').textContent=`${sorted.length} registro${sorted.length!==1?'s':''}`;
+  const tb=document.getElementById('tbody');
+  if(!sorted.length){tb.innerHTML=`<tr><td colspan="${COLS.length}"><div class="empty">No hay hallazgos que coincidan con los filtros.</div></td></tr>`;return;}
+  tb.innerHTML=sorted.map(r=>`<tr data-i="${r._i}">
+    <td class="idcell">${esc(r.id)}</td><td>${esc(r.area)}</td>
+    <td>${esc(truncate(r.descripcion,64))||'<span style="color:var(--txt-dim)">—</span>'}</td>
+    <td><span class="pill ${pillCls(r.estado)}">${esc(r.estado)}</span></td>
+    <td><span class="pill ${pillCls(r.prioridad)}">${esc(r.prioridad)}</span></td>
+    <td><span class="tag ${sideClass(r.pelota)}">${esc(r.pelota)}</span></td>
+    <td style="color:var(--txt-mut)">${esc(r.gestionLabel)}</td>
+    <td class="idcell">${esc(r.cotizacion)||'<span style="color:var(--txt-dim)">—</span>'}</td>
+    <td class="idcell">${r.fecha?fmtDate(r.fecha):'—'}</td></tr>`).join("");
+  tb.querySelectorAll('tr').forEach(tr=>tr.onclick=()=>openModal(+tr.dataset.i));
+}
+const pillCls=v=>"p-"+norm(v).replace(/\//g,'').replace(/\s+/g,'');
+const esc=s=>String(s==null?"":s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const truncate=(s,n)=>{s=String(s||"");return s.length>n?s.slice(0,n-1)+"…":s;};
+const fmtDate=d=>`${String(d.getDate()).padStart(2,'0')}-${String(d.getMonth()+1).padStart(2,'0')}-${d.getFullYear()}`;
+
+function openModal(i){
+  const r=RAW.find(x=>x._i===i); if(!r)return;
+  document.getElementById('mTitle').textContent=`${r.id} · ${r.area}`;
+  const f=(l,v,full)=>`<div class="field ${full?'full':''}"><span class="fl">${l}</span><span class="fv">${esc(v||'—')}</span></div>`;
+  let html="";
+  html+=f("Estado",r.estado)+f("Prioridad",r.prioridad);
+  html+=f("Responsable",r.pelota)+f("Estado de aprobación",r.gestionLabel);
+  html+=f("N° Cotización",r.cotizacion||"—")+f("Sala / ubicación",r.sala);
+  html+=f("Equipo",r.equipo)+f("Fecha detección",r.fecha?fmtDate(r.fecha):"—");
+  html+=f("Fecha finalización",r.fechafin?fmtDate(r.fechafin):"—");
+  if(r.descripcion) html+=`<div class="field full"><span class="fl">Título / descripción</span><div class="obs">${esc(r.descripcion)}</div></div>`;
+  html+=`<div class="field full"><span class="fl">Observaciones</span><div class="obs">${esc(r.observaciones||"Sin observaciones registradas.")}</div></div>`;
+  const shown=new Set(Object.values(COLMAP).filter(x=>x!=null).map(idx=>HEADERS[idx]));
+  const extras=Object.entries(r._all).filter(([h,v])=>!shown.has(h)&&v!=null&&String(v).trim()!=="");
+  if(extras.length)html+=`<div class="field full"><span class="fl">Otros campos</span><div class="obs">${extras.map(([h,v])=>`<b>${esc(h)}:</b> ${esc(v)}`).join("<br>")}</div></div>`;
+  document.getElementById('mBody').innerHTML=html;
+  document.getElementById('modal').classList.add('show');
+}
+document.getElementById('mClose').onclick=()=>document.getElementById('modal').classList.remove('show');
+document.getElementById('modal').onclick=e=>{if(e.target.id==='modal')document.getElementById('modal').classList.remove('show');};
+
+function renderChips(){
+  const c=[];
+  if(filters.chartArea)c.push({label:"Área: "+filters.chartArea,clear:()=>filters.chartArea=""});
+  if(filters.chartEstado)c.push({label:"Estado: "+filters.chartEstado,clear:()=>filters.chartEstado=""});
+  if(filters.chartPrioridad)c.push({label:"Prioridad: "+filters.chartPrioridad,clear:()=>filters.chartPrioridad=""});
+  const box=document.getElementById('chips');
+  box.innerHTML=c.map((x,i)=>`<span class="chip">${esc(x.label)}<button data-i="${i}">×</button></span>`).join("");
+  box.querySelectorAll('button').forEach((b,i)=>b.onclick=()=>{c[i].clear();renderAll();});
+}
+function populateFilters(){
+  const fill=(id,vals,ph)=>{document.getElementById(id).innerHTML=`<option value="">${ph}</option>`+vals.map(v=>`<option>${esc(v)}</option>`).join("");};
+  fill('fArea',[...new Set(RAW.map(r=>r.area))].sort(),"Todas");
+  fill('fEstado',["Abierto","Cerrado","N/A"].filter(s=>RAW.some(r=>r.estado===s)),"Todos");
+  fill('fPrioridad',["Alta","Media","Baja"].concat([...new Set(RAW.map(r=>r.prioridad))].filter(p=>!["Alta","Media","Baja"].includes(p))).filter(s=>RAW.some(r=>r.prioridad===s)),"Todas");
+  fill('fPelota',["ICETEL","NextStream","N/A"].filter(s=>RAW.some(r=>r.pelota===s)),"Todas");
+  const anos=[...new Set(RAW.filter(r=>r.fecha).map(r=>String(r.fecha.getFullYear())))].sort().reverse();
+  fill('fAno',anos,"Todos");
+  const MESN=["01","02","03","04","05","06","07","08","09","10","11","12"];
+  const MESL=["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+  const mesesPresentes=new Set(RAW.filter(r=>r.fecha).map(r=>String(r.fecha.getMonth()+1).padStart(2,'0')));
+  const selMes=document.getElementById('fMes');
+  selMes.innerHTML='<option value="">Todos</option>'+MESN.filter(m=>mesesPresentes.has(m)).map(m=>`<option value="${m}">${MESL[+m-1]}</option>`).join("");
+}
+document.getElementById('fArea').onchange=e=>{filters.area=e.target.value;renderAll();};
+document.getElementById('fEstado').onchange=e=>{filters.estado=e.target.value;renderAll();};
+document.getElementById('fPrioridad').onchange=e=>{filters.prioridad=e.target.value;renderAll();};
+document.getElementById('fPelota').onchange=e=>{filters.pelota=e.target.value;renderAll();};
+document.getElementById('fAno').onchange=e=>{filters.ano=e.target.value;renderAll();};
+document.getElementById('fMes').onchange=e=>{filters.mes=e.target.value;renderAll();};
+document.getElementById('fSearch').oninput=e=>{filters.search=e.target.value;renderAll();};
+document.querySelectorAll('.seg button').forEach(b=>b.onclick=()=>{document.querySelectorAll('.seg button').forEach(x=>x.classList.remove('on'));b.classList.add('on');timeGran=b.dataset.gran;renderTime(applyFilters());});
+document.getElementById('sideIC').onclick=()=>{filters.pelota=filters.pelota==="ICETEL"?"":"ICETEL";document.getElementById('fPelota').value=filters.pelota;renderAll();};
+document.getElementById('sideNX').onclick=()=>{filters.pelota=filters.pelota==="NextStream"?"":"NextStream";document.getElementById('fPelota').value=filters.pelota;renderAll();};
+
+async function loadWorkbook(arrbuf, filename){
+  const wb=XLSX.read(arrbuf,{type:'array',cellDates:true});
+  let sheetName=wb.SheetNames.find(n=>norm(n).includes("hallazgo")&&norm(n).includes("unific"))||wb.SheetNames.find(n=>norm(n).includes("hallazgo"))||wb.SheetNames[0];
+  const ws=wb.Sheets[sheetName];
+  const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:"",raw:false});
+  let hi=0;
+  for(let i=0;i<Math.min(rows.length,20);i++){
+    const cells=rows[i].map(c=>norm(c));
+    if(cells.filter(c=>c!=="").length>=4 && (cells.includes("estado")||cells.includes("area")||cells.includes("numero"))){hi=i;break;}
+  }
+  HEADERS=rows[hi].map(h=>String(h).trim());
+  const body=rows.slice(hi+1).filter(r=>r.some(c=>String(c).trim()!==""));
+  COLMAP=autoMap(HEADERS);
+  RAW=buildRecords(body);
+
+  const ok = confirm(`Vas a reemplazar la versión que ve tu cliente con "${filename}" (${RAW.length} hallazgos detectados).\n\n¿Confirmas que quieres dejarla como la versión vigente?`);
+  if(!ok){ finishLoad({fromFile:true,filename,cancelled:true}); return; }
+
+  setSavingIndicator(true);
+  const saved = await saveLatestToSupabase(HEADERS, COLMAP, body, filename);
+  setSavingIndicator(false);
+  finishLoad({fromFile:true, filename, saved});
+}
+
+function setSavingIndicator(on){
+  const el=document.getElementById('btnLoad');
+  if(!el) return;
+  el.disabled=on;
+  el.style.opacity=on?0.6:1;
+  el.querySelector('.btnload-txt') && (el.querySelector('.btnload-txt').textContent = on?'Guardando…':'Actualizar Excel');
+}
+
+function finishLoad(opts){
+  opts = opts||{};
+  populateFilters();resetFilters();renderAll();
+  const now=new Date();
+  document.getElementById('stamp').innerHTML=`<b>${RAW.length} hallazgos</b><br>${fmtDate(now)} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+  const banner=document.getElementById('bannerTxt');
+  if(opts.cancelled){
+    banner.innerHTML = `Carga cancelada. Se mantiene la versión vigente anterior.`;
+  }else if(opts.fromFile){
+    banner.innerHTML = opts.saved
+      ? `<b>Guardado como versión vigente.</b> Archivo "${esc(opts.filename)}" · ${RAW.length} hallazgos. Ya está disponible para tu cliente en este mismo link.`
+      : `Se cargó "${esc(opts.filename)}" en tu navegador, pero <b>no se pudo guardar en Supabase</b>. Tu cliente seguirá viendo la versión anterior hasta que reintentes.`;
+  }else if(opts.remote){
+    const d=new Date(opts.updatedAt);
+    banner.innerHTML = `Mostrando la <b>versión vigente</b>${opts.filename?` (${esc(opts.filename)})`:""} · actualizada el ${fmtDate(d)} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}.`;
+  }else{
+    banner.innerHTML = `Mostrando los <b>${RAW.length} hallazgos</b> de la última carga local. Usa <b>Actualizar Excel</b> para subir un export nuevo y dejarlo como versión vigente para tu cliente.`;
+  }
+}
+function resetFilters(){Object.assign(filters,{area:"",estado:"",prioridad:"",pelota:"",ano:"",mes:"",search:"",chartArea:"",chartEstado:"",chartPrioridad:""});['fArea','fEstado','fPrioridad','fPelota','fAno','fMes'].forEach(id=>{const el=document.getElementById(id);if(el)el.value="";});document.getElementById('fSearch').value="";}
+function handleFile(file){const rd=new FileReader();rd.onload=e=>{try{loadWorkbook(e.target.result,file.name);}catch(err){alert("No pude leer el archivo: "+err.message);console.error(err);}};rd.onerror=()=>alert("Error al leer el archivo.");rd.readAsArrayBuffer(file);}
+document.getElementById('btnLoad').onclick=()=>document.getElementById('file').click();
+document.getElementById('file').onchange=e=>{if(e.target.files[0])handleFile(e.target.files[0]);};
+
+let dragc=0;const dz=document.getElementById('dropzone');
+window.addEventListener('dragenter',e=>{e.preventDefault();dragc++;dz.classList.add('show');});
+window.addEventListener('dragover',e=>e.preventDefault());
+window.addEventListener('dragleave',e=>{e.preventDefault();if(--dragc<=0)dz.classList.remove('show');});
+window.addEventListener('drop',e=>{e.preventDefault();dragc=0;dz.classList.remove('show');if(e.dataTransfer.files[0])handleFile(e.dataTransfer.files[0]);});
+
+window.addEventListener('keydown',e=>{if(e.key==='Escape'){document.getElementById('modal').classList.remove('show');}});
+
+/* ============ init: intenta Supabase primero, si no hay nada usa el snapshot embebido ============ */
+(async function(){
+  const remote = await fetchLatestFromSupabase();
+  if(remote){
+    HEADERS = remote.headers;
+    COLMAP = remote.colmap;
+    RAW = buildRecords(remote.rows);
+    finishLoad({remote:true, updatedAt:remote.updated_at, filename:remote.filename});
+  }else{
+    HEADERS = EMBEDDED.headers.slice();
+    COLMAP = Object.assign({}, EMBEDDED.colmap);
+    RAW = buildRecords(EMBEDDED.rows);
+    finishLoad({});
+  }
+})();
+</script>
+</body>
+</html>
