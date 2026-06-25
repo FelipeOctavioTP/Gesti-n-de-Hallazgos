@@ -180,7 +180,7 @@ footer{margin-top:30px;text-align:center;color:var(--txt-dim);font-size:11.5px;f
     </div>
   </header>
 
-  <div class="banner" id="banner">
+  <div class="banner hidden" id="banner">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 16v-4m0-4h.01M22 12A10 10 0 1 1 12 2a10 10 0 0 1 10 10z"/></svg>
     <span id="bannerTxt"></span>
   </div>
@@ -670,17 +670,21 @@ function finishLoad(opts){
   const now=new Date();
   document.getElementById('stamp').innerHTML=`<b>${RAW.length} hallazgos</b><br>${fmtDate(now)} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
   const banner=document.getElementById('bannerTxt');
+  const bannerBox=document.getElementById('banner');
   if(opts.cancelled){
+    bannerBox.classList.remove('hidden');
     banner.innerHTML = `Carga cancelada. Se mantiene la versión vigente anterior.`;
   }else if(opts.fromFile){
+    bannerBox.classList.remove('hidden');
     banner.innerHTML = opts.saved
       ? `<b>Guardado como versión vigente.</b> Archivo "${esc(opts.filename)}" · ${RAW.length} hallazgos. Ya está disponible para tu cliente en este mismo link.`
       : `Se cargó "${esc(opts.filename)}" en tu navegador, pero <b>no se pudo guardar en Supabase</b>. Tu cliente seguirá viendo la versión anterior hasta que reintentes.`;
   }else if(opts.remote){
+    bannerBox.classList.remove('hidden');
     const d=new Date(opts.updatedAt);
     banner.innerHTML = `Mostrando la <b>versión vigente</b>${opts.filename?` (${esc(opts.filename)})`:""} · actualizada el ${fmtDate(d)} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}.`;
   }else{
-    banner.innerHTML = `Mostrando los <b>${RAW.length} hallazgos</b> de la última carga local. Usa <b>Actualizar Excel</b> para subir un export nuevo y dejarlo como versión vigente para tu cliente.`;
+    bannerBox.classList.add('hidden');
   }
 }
 function resetFilters(){Object.assign(filters,{area:"",estado:"",prioridad:"",pelota:"",ano:"",mes:"",search:"",chartArea:"",chartEstado:"",chartPrioridad:""});['fArea','fEstado','fPrioridad','fPelota','fAno','fMes'].forEach(id=>{const el=document.getElementById(id);if(el)el.value="";});document.getElementById('fSearch').value="";}
