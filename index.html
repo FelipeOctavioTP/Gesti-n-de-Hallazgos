@@ -417,11 +417,13 @@ function buildRecords(rows){
     const estado=classEstado(get('estado'));
     const pel=classResponsable(get('gestion'), estado);
     const all={}; HEADERS.forEach((h,ci)=>{all[h]=r[ci];});
+    const sala=get('sala')||"", equipo=get('equipo')||"", descripcion=get('descripcion')||"";
+    const tituloCompleto=[descripcion,equipo,sala].filter(v=>v&&String(v).trim()!=="").join(" - ");
     return {
       _i:i, id:get('id')||(i+1),
-      sala:get('sala')||"", equipo:get('equipo')||"",
+      sala:sala, equipo:equipo,
       area:(String(get('area')||"Sin área").trim())||"Sin área",
-      descripcion:get('descripcion')||"",
+      descripcion:descripcion, tituloCompleto:tituloCompleto,
       estado:estado, prioridad:classPrioridad(get('prioridad')),
       gestion:get('gestion')?String(get('gestion')).trim():"",
       gestionLabel:pel.g, pelota:pel.side,
@@ -444,7 +446,7 @@ function applyFilters(){
     if(filters.pelota&&r.pelota!==filters.pelota)return false;
     if(filters.ano){if(!r.fecha||String(r.fecha.getFullYear())!==filters.ano)return false;}
     if(filters.mes){if(!r.fecha||String(r.fecha.getMonth()+1).padStart(2,'0')!==filters.mes)return false;}
-    if(s){const blob=norm([r.id,r.sala,r.equipo,r.area,r.descripcion,r.observaciones,r.gestion,r.estado,r.prioridad].join(" "));if(!blob.includes(s))return false;}
+    if(s){const blob=norm([r.id,r.sala,r.equipo,r.area,r.tituloCompleto,r.observaciones,r.gestion,r.estado,r.prioridad].join(" "));if(!blob.includes(s))return false;}
     return true;
   });
 }
@@ -563,7 +565,7 @@ function renderTable(data){
   if(!sorted.length){tb.innerHTML=`<tr><td colspan="${COLS.length}"><div class="empty">No hay hallazgos que coincidan con los filtros.</div></td></tr>`;return;}
   tb.innerHTML=sorted.map(r=>`<tr data-i="${r._i}">
     <td class="idcell">${esc(r.id)}</td><td>${esc(r.area)}</td>
-    <td>${esc(truncate(r.descripcion,64))||'<span style="color:var(--txt-dim)">—</span>'}</td>
+    <td>${esc(truncate(r.tituloCompleto,80))||'<span style="color:var(--txt-dim)">—</span>'}</td>
     <td><span class="pill ${pillCls(r.estado)}">${esc(r.estado)}</span></td>
     <td><span class="pill ${pillCls(r.prioridad)}">${esc(r.prioridad)}</span></td>
     <td><span class="tag ${sideClass(r.pelota)}">${esc(r.pelota)}</span></td>
@@ -572,6 +574,7 @@ function renderTable(data){
     <td class="idcell">${r.fecha?fmtDate(r.fecha):'—'}</td></tr>`).join("");
   tb.querySelectorAll('tr').forEach(tr=>tr.onclick=()=>openModal(+tr.dataset.i));
 }
+const tituloCompleto=r=>[r.descripcion,r.equipo,r.sala].filter(v=>v&&String(v).trim()!=="").join(" - ");
 const pillCls=v=>"p-"+norm(v).replace(/\//g,'').replace(/\s+/g,'');
 const esc=s=>String(s==null?"":s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const truncate=(s,n)=>{s=String(s||"");return s.length>n?s.slice(0,n-1)+"…":s;};
@@ -587,7 +590,7 @@ function openModal(i){
   html+=f("N° Cotización",r.cotizacion||"—")+f("Sala / ubicación",r.sala);
   html+=f("Equipo",r.equipo)+f("Fecha detección",r.fecha?fmtDate(r.fecha):"—");
   html+=f("Fecha finalización",r.fechafin?fmtDate(r.fechafin):"—");
-  if(r.descripcion) html+=`<div class="field full"><span class="fl">Título / descripción</span><div class="obs">${esc(r.descripcion)}</div></div>`;
+  if(r.tituloCompleto) html+=`<div class="field full"><span class="fl">Título / descripción</span><div class="obs">${esc(r.tituloCompleto)}</div></div>`;
   html+=`<div class="field full"><span class="fl">Observaciones</span><div class="obs">${esc(r.observaciones||"Sin observaciones registradas.")}</div></div>`;
   const shown=new Set(Object.values(COLMAP).filter(x=>x!=null).map(idx=>HEADERS[idx]));
   const extras=Object.entries(r._all).filter(([h,v])=>!shown.has(h)&&v!=null&&String(v).trim()!=="");
@@ -636,7 +639,7 @@ async function loadWorkbook(arrbuf, filename){
   const wb=XLSX.read(arrbuf,{type:'array',cellDates:true});
   let sheetName=wb.SheetNames.find(n=>norm(n).includes("hallazgo")&&norm(n).includes("unific"))||wb.SheetNames.find(n=>norm(n).includes("hallazgo"))||wb.SheetNames[0];
   const ws=wb.Sheets[sheetName];
-  const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:"",raw:false});
+  const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:"",raw:true});
   let hi=0;
   for(let i=0;i<Math.min(rows.length,20);i++){
     const cells=rows[i].map(c=>norm(c));
